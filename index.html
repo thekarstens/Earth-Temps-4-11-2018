@@ -1183,14 +1183,14 @@ var WORLD_BOUNDS = L.latLngBounds(
 function ensureEra5Overlays(){
     if (!era5Apr10Overlay){
       era5Apr10Overlay = L.imageOverlay(
-        "global/era5_t2m_global_2018-04-10_21Z_F.png",
+        "global/era5_t2m_global_2018-04-10_21Z_F_mercator_overlay.png",
         WORLD_BOUNDS,
         { opacity: productOpacity.global || 0.70, interactive:false }
       );
     }
     if (!era5Apr11Overlay){
       era5Apr11Overlay = L.imageOverlay(
-        "global/era5_t2m_global_2018-04-11_21Z_F.png",
+        "global/era5_t2m_global_2018-04-11_21Z_F_mercator_overlay.png",
         WORLD_BOUNDS,
         { opacity: productOpacity.global || 0.70, interactive:false }
       );

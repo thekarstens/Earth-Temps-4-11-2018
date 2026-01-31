@@ -586,8 +586,7 @@ body.student-mode .bstatus { display:none !important; }
       <span class="top-sep">—</span>
       <span class="top-question"><span class="top-q-label">Question:</span> How can we use real-time weather data to make safer decisions?</span>
     </div>
-    <button class="bbtn bbtn-story" id="testFrontBtn" title="Jump to the first story stop (testing)">TEST FRONT</button>
-    <button class="bbtn bbtn-story" id="beginStoryBtn" title="Begin the guided story">START</button>
+<button class="bbtn bbtn-story" id="beginStoryBtn" title="Begin the guided story">START</button>
   </div>
   <div class="banner-divider" aria-hidden="true"></div>
 
@@ -1018,21 +1017,6 @@ addTown("Omaha", 41.2565, -95.9345);
 var beginStoryBtn = document.getElementById("beginStoryBtn");
 if (beginStoryBtn) beginStoryBtn.onclick = function(){ storyStarted = true;
     renderStory(storyIndex, true); };
-
-
-
-var testFrontBtn = document.getElementById("testFrontBtn");
-if (testFrontBtn) testFrontBtn.onclick = function(){
-  // Quick jump to the first stop for testing / demo
-  if (!storyItems || !storyItems.length){
-    setStatus("Story not loaded yet (check Google Sheet publish link)");
-    return;
-  }
-  storyStarted = true;
-  storyIndex = 0;
-  renderStory(storyIndex, true);
-};
-
 // Student/Teacher mode (Student hides layer toggles + status)
 var modeBtn = document.getElementById("modeBtn");
 function setMode(mode){
@@ -1188,7 +1172,52 @@ if (radarOpacity){
   var era5Apr10Enabled = false;
   var era5Apr11Enabled = false;
 
-  // NOTE: Leaflet basemaps (OSM/Carto) are Web Mercator (EPSG:3857).
+  
+  // Fronts overlay (GeoJSON lines you upload)
+  var frontsEnabled = false;
+  var frontsLayer = null;
+  var frontsLoaded = false;
+
+  function frontsStyle(feature){
+    var p = (feature && feature.properties) ? feature.properties : {};
+    var t = String(p.type || p.front || p.FRONT || p.kind || "").toLowerCase();
+    // basic colors by type
+    var color = "#111";
+    if (t.includes("cold")) color = "#1e88e5";
+    else if (t.includes("warm")) color = "#e53935";
+    else if (t.includes("occluded")) color = "#8e24aa";
+    else if (t.includes("stationary")) color = "#43a047";
+    return { color: color, weight: 3, opacity: 0.95 };
+  }
+
+  function ensureFronts(){
+    if (frontsLayer || frontsLoaded) return;
+    frontsLoaded = true;
+    fetch("fronts.geojson?v=" + Date.now())
+      .then(function(res){
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function(geo){
+        frontsLayer = L.geoJSON(geo, { style: frontsStyle, pane: "lines" });
+        if (frontsEnabled){ frontsLayer.addTo(map); }
+      })
+      .catch(function(err){
+        console.warn("Fronts GeoJSON not found yet (expected fronts.geojson in repo root).", err);
+        frontsLayer = null;
+      });
+  }
+
+  function updateFronts(){
+    ensureFronts();
+    if (!frontsLayer) return;
+    if (frontsEnabled){
+      if (!map.hasLayer(frontsLayer)) frontsLayer.addTo(map);
+    } else {
+      if (map.hasLayer(frontsLayer)) map.removeLayer(frontsLayer);
+    }
+  }
+// NOTE: Leaflet basemaps (OSM/Carto) are Web Mercator (EPSG:3857).
 // If your ERA5 PNG was rendered in plain lat/lon (Plate Carree), it will look distorted.
 // Use the Colab exporter to "warp to Mercator" and then these bounds will line up.
 var WORLD_BOUNDS = L.latLngBounds(
@@ -1298,6 +1327,10 @@ var overlays = {};
 
   overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
   overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
+
+  overlays["Fronts (Surface Analysis)"] = L.layerGroup(); // checkbox only; loads fronts.geojson
+
+
 
 
   // HRRR Temp GeoJSON (real layer group; Leaflet handles show/hide)
@@ -1523,11 +1556,11 @@ map.on("overlayadd", function(e){
       updateEra5Global();
       updateProductLabel();
     }
-    if (e.layer === hrrrTempLayer) {
-      addStateLines();
-      updateProductLabel();
-      updateHrrrTempRadius();
-    }
+    if \(e\.layer === hrrrTempLayer\) \{
+      addStateLines\(\);
+      updateProductLabel\(\);
+      updateHrrrTempRadius\(\);
+    \}\    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = true; updateFronts(); }
   
     syncOpacitySliderToActive();
     applyActiveOpacity();
@@ -1538,10 +1571,10 @@ map.on("overlayadd", function(e){
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) { era5Apr10Enabled = false; updateEra5Global(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) { era5Apr11Enabled = false; updateEra5Global(); updateProductLabel(); }
-    if (e.layer === hrrrTempLayer) {
-      removeStateLines();
-      updateProductLabel();
-    }
+    if \(e\.layer === hrrrTempLayer\) \{
+      removeStateLines\(\);
+      updateProductLabel\(\);
+    \}\    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = false; updateFronts(); }
 
     syncOpacitySliderToActive();
     applyActiveOpacity();

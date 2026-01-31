@@ -1556,11 +1556,12 @@ map.on("overlayadd", function(e){
       updateEra5Global();
       updateProductLabel();
     }
-    if \(e\.layer === hrrrTempLayer\) \{
-      addStateLines\(\);
-      updateProductLabel\(\);
-      updateHrrrTempRadius\(\);
-    \}\    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = true; updateFronts(); }
+    if (e.layer === overlays["HRRR Temp (2m)"]) {
+      addStateLines();
+      updateProductLabel();
+      updateHrrrTempRadius();
+    }
+    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = true; updateFronts(); }
   
     syncOpacitySliderToActive();
     applyActiveOpacity();
@@ -1571,10 +1572,11 @@ map.on("overlayadd", function(e){
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) { era5Apr10Enabled = false; updateEra5Global(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) { era5Apr11Enabled = false; updateEra5Global(); updateProductLabel(); }
-    if \(e\.layer === hrrrTempLayer\) \{
-      removeStateLines\(\);
-      updateProductLabel\(\);
-    \}\    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = false; updateFronts(); }
+    if (e.layer === overlays["HRRR Temp (2m)"]) {
+      removeStateLines();
+      updateProductLabel();
+    }
+    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = false; updateFronts(); }
 
     syncOpacitySliderToActive();
     applyActiveOpacity();

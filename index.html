@@ -1060,10 +1060,11 @@ setMode("student");
 var radarOpacity = document.getElementById("radarOpacity");
 
 // Remember per-layer opacity so kids can flip products without losing their setting
-var productOpacity = { radar: 0.70, snow: 0.70, temp: 0.70 };
+var productOpacity = { radar: 0.70, snow: 0.70, temp: 0.70, global: 0.70 };
 
 function getActiveProductKey(){
-  // Priority: snow > temp > radar (matches your product label logic)
+  // Priority: global > snow > temp > radar (matches your product label logic)
+  if ((typeof era5Apr10Enabled !== "undefined" && era5Apr10Enabled) || (typeof era5Apr11Enabled !== "undefined" && era5Apr11Enabled)) return "global";
   if (typeof gfsSnowEnabled !== "undefined" && gfsSnowEnabled) return "snow";
   if (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)) return "temp";
   return "radar";
@@ -1092,6 +1093,10 @@ function applyActiveOpacity(){
     if (gfsSnowOverlay && gfsSnowEnabled) gfsSnowOverlay.setOpacity(op);
   } else if (key === "temp"){
     setTempOpacity(op);
+  }  else if (key === "global"){
+    ensureEra5Overlays();
+    if (era5Apr10Overlay) era5Apr10Overlay.setOpacity(op);
+    if (era5Apr11Overlay) era5Apr11Overlay.setOpacity(op);
   }
 }
 
@@ -1172,7 +1177,48 @@ if (radarOpacity){
   var gfsSnowOverlay = null;
   var gfsSnowEnabled = false;
 
-  var alertsLayer = L.geoJSON(null, {
+  
+  // ---------- ERA5 Global Temp overlays (static PNG imageOverlay) ----------
+  var era5Apr10Overlay = null;
+  var era5Apr11Overlay = null;
+  var era5Apr10Enabled = false;
+  var era5Apr11Enabled = false;
+
+  var WORLD_BOUNDS = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180));
+
+  function ensureEra5Overlays(){
+    if (!era5Apr10Overlay){
+      era5Apr10Overlay = L.imageOverlay(
+        "global/png/era5_t2m_global_2018-04-10_21Z_F.png",
+        WORLD_BOUNDS,
+        { opacity: productOpacity.global || 0.70 }
+      );
+    }
+    if (!era5Apr11Overlay){
+      era5Apr11Overlay = L.imageOverlay(
+        "global/png/era5_t2m_global_2018-04-11_21Z_F.png",
+        WORLD_BOUNDS,
+        { opacity: productOpacity.global || 0.70 }
+      );
+    }
+  }
+
+  function updateEra5Global(){
+    ensureEra5Overlays();
+
+    if (era5Apr10Enabled){
+      if (!map.hasLayer(era5Apr10Overlay)) era5Apr10Overlay.addTo(map);
+    } else {
+      if (era5Apr10Overlay && map.hasLayer(era5Apr10Overlay)) map.removeLayer(era5Apr10Overlay);
+    }
+
+    if (era5Apr11Enabled){
+      if (!map.hasLayer(era5Apr11Overlay)) era5Apr11Overlay.addTo(map);
+    } else {
+      if (era5Apr11Overlay && map.hasLayer(era5Apr11Overlay)) map.removeLayer(era5Apr11Overlay);
+    }
+  }
+var alertsLayer = L.geoJSON(null, {
     filter: function(f){
       const p = (f && f.properties) ? f.properties : {};
       const ev = String(p.event || p.EVENT || p.headline || p.HEADLINE || "").toLowerCase();
@@ -1231,6 +1277,10 @@ var overlays = {};
   overlays["Composite Radar (Observed)"] = L.layerGroup(); // placeholder group
 
   overlays["GFS Snow Forecast"] = L.layerGroup(); // checkbox only; overlay managed manually
+
+  // ERA5 Global Temperature PNG toggles (static overlays)
+  overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
+  overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
 
   // HRRR Temp GeoJSON (real layer group; Leaflet handles show/hide)
   var hrrrTempLayer = L.layerGroup();
@@ -1452,7 +1502,7 @@ var sq = L.circleMarker(latlng, {
   renderer: hrrrCanvas,
   radius: r,
   stroke: false,
-  fillColor: colorForTempF(t),
+  fillColor: tempColor(t),
   fillOpacity: hrrrOpacity
 });
 
@@ -1471,7 +1521,7 @@ if (raw !== null) {
   }
 }
 
-if (isFinite(t)) { hrrrPoints.push([latlng.lng, latlng.lat, t]); }
+if (isFinite(t)) { hrrrPoints.push({ lat: latlng.lat, lon: latlng.lng, tF: t }); }
 return sq;
 },
         onEachFeature: function(feature, layer){
@@ -1507,6 +1557,8 @@ return sq;
     var mainLayers = [
       overlays["Composite Radar (Observed)"],
       overlays["GFS Snow Forecast"],
+      overlays["Global Temp (ERA5) – Apr 10 (21Z)"],
+      overlays["Global Temp (ERA5) – Apr 11 (21Z)"],
       hrrrTempLayer
     ];
 
@@ -1526,11 +1578,33 @@ return sq;
       gfsSnowEnabled = false;
       if (gfsSnowOverlay) map.removeLayer(gfsSnowOverlay);
     }
-  }
+  
+    if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 10 (21Z)"])){
+      era5Apr10Enabled = false;
+      if (era5Apr10Overlay && map.hasLayer(era5Apr10Overlay)) map.removeLayer(era5Apr10Overlay);
+    }
+    if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 11 (21Z)"])){
+      era5Apr11Enabled = false;
+      if (era5Apr11Overlay && map.hasLayer(era5Apr11Overlay)) map.removeLayer(era5Apr11Overlay);
+    }
+}
 map.on("overlayadd", function(e){
     enforceSingleOverlay(e.layer);
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
+    if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
+      era5Apr10Enabled = true;
+      era5Apr11Enabled = false; // toggle behavior
+      updateEra5Global();
+      updateProductLabel();
+    }
+    if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) {
+      era5Apr11Enabled = true;
+      era5Apr10Enabled = false; // toggle behavior
+      updateEra5Global();
+      updateProductLabel();
+    }
+
     if (e.layer === hrrrTempLayer) {
       addStateLines();
       updateProductLabel();
@@ -1544,6 +1618,17 @@ map.on("overlayadd", function(e){
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
+    if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
+      era5Apr10Enabled = false;
+      updateEra5Global();
+      updateProductLabel();
+    }
+    if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) {
+      era5Apr11Enabled = false;
+      updateEra5Global();
+      updateProductLabel();
+    }
+
     if (e.layer === hrrrTempLayer) {
       removeStateLines();
       updateProductLabel();
@@ -1579,6 +1664,7 @@ map.on("overlayadd", function(e){
   // IMPORTANT: never concatenate labels (it will crowd the middle).
   // Choose ONE label based on what is currently visible/active.
   var candidates = [
+    { on: ((typeof era5Apr10Enabled !== "undefined" && era5Apr10Enabled) || (typeof era5Apr11Enabled !== "undefined" && era5Apr11Enabled)), label: "GLOBAL TEMP" },
     { on: (typeof gfsSnowEnabled !== "undefined" && gfsSnowEnabled), label: "SNOW" },
     { on: (typeof ptypeEnabled  !== "undefined" && ptypeEnabled),  label: "P-TYPE" },
     { on: (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)), label: "TEMP" },
@@ -1605,6 +1691,10 @@ map.on("overlayadd", function(e){
     } else if (key === "snow"){
       title = "Snow (forecast)";
       if (bar) bar.style.background = "linear-gradient(90deg, #ffffff, #d7ecff, #9ac8ff, #4f7cff)";
+      el.style.display = "";
+    } else if (key === "global"){
+      title = "Global 2m Temperature (°F) — ERA5";
+      if (bar) bar.style.background = "linear-gradient(90deg, #2d004b 0%, #542788 12%, #2166ac 26%, #67a9cf 40%, #d1e5f0 52%, #fff7bc 62%, #fec44f 72%, #f16913 84%, #d73027 100%)";
       el.style.display = "";
     } else { // temp
       title = "2m Temperature (°F)";

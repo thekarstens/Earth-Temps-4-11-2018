@@ -1173,9 +1173,14 @@ if (radarOpacity){
   var era5Apr10Enabled = false;
   var era5Apr11Enabled = false;
 
-  var WORLD_BOUNDS = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180));
-
-  function ensureEra5Overlays(){
+  // NOTE: Leaflet basemaps (OSM/Carto) are Web Mercator (EPSG:3857).
+// If your ERA5 PNG was rendered in plain lat/lon (Plate Carree), it will look distorted.
+// Use the Colab exporter to "warp to Mercator" and then these bounds will line up.
+var WORLD_BOUNDS = L.latLngBounds(
+  L.latLng(-85.05112878, -180),
+  L.latLng( 85.05112878,  180)
+);
+function ensureEra5Overlays(){
     if (!era5Apr10Overlay){
       era5Apr10Overlay = L.imageOverlay(
         "global/era5_t2m_global_2018-04-10_21Z_F.png",

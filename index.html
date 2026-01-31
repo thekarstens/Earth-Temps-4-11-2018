@@ -7,6 +7,8 @@
 
 <link rel="stylesheet" href="./leaflet.css"/>
 <script src="./leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
 var storyStarted = false; // do not auto-open storyboard
 </script>
@@ -553,6 +555,42 @@ body.student-mode .bstatus { display:none !important; }
     letter-spacing: 0.2px;
   }
 
+
+  /* --- Synoptic (fronts/H/L) labels --- */
+  .synoptic-hl__box{
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight: 900;
+    font-size: 18px;
+    background: rgba(255,255,255,0.92);
+    border: 2px solid rgba(0,0,0,0.75);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    user-select: none;
+    line-height: 1;
+  }
+  .synoptic-hl__box.is-low{ color:#cc0000; }
+  .synoptic-hl__box.is-high{ color:#0055cc; }
+
+  /* Warm/occluded “bump” symbols for fronts */
+  .warm-front-bump .warm-bump,
+  .stationary-front-bump .warm-bump{
+    width: 14px;
+    height: 14px;
+    border-radius: 14px 14px 0 0;
+    background: #cc0000;
+  }
+  .occluded-front-bump .occluded-bump{
+    width: 14px;
+    height: 14px;
+    border-radius: 14px 14px 0 0;
+    background: #7a1fa2;
+  }
+
+
 </style>
 </head>
 
@@ -706,6 +744,16 @@ body.student-mode .bstatus { display:none !important; }
   map.createPane("lines");
   map.getPane("lines").style.zIndex = 450;         // above dots, below popups         // above dots
   map.getPane("lines").style.pointerEvents = "none"; // keep clicks working
+
+  // --- Synoptic panes (fronts + H/L above METARs / products) ---
+  map.createPane("synoptic");
+  map.getPane("synoptic").style.zIndex = 520;
+  map.getPane("synoptic").style.pointerEvents = "none";
+
+  map.createPane("synopticLabels");
+  map.getPane("synopticLabels").style.zIndex = 530;
+  map.getPane("synopticLabels").style.pointerEvents = "auto";
+
 
   var usStatesLayer = null;
   var usStatesLoaded = false;
@@ -1289,20 +1337,231 @@ function ensureEra5Overlays(){
   alertsLayer.addTo(map);
   var alertsEnabled = true;
 
-  // Layer control (NO extra base layer picker)
-  // State boundary outline handled via GeoJSON (no labels)
-var overlays = {};
-  overlays["Composite Radar (Observed)"] = L.layerGroup(); // placeholder group
+  // Layer control (NO extra base la  // ---------------- SYNOPTIC (GeoJSON): Fronts + High/Low ----------------
+  // Put your files here: /synoptic/2018-04-14_12Z_surface.geojson etc.
+  // Each front LineString should have properties like: { "front":"cold", "width":4 }
+  // Each H/L point should have properties like: { "label":"L 996" } or { "label":"H 1032" }
 
-  overlays["GFS Snow Forecast"] = L.layerGroup(); // checkbox only; overlay managed manually
+  function frontColor(type){
+    switch(type){
+      case "cold": return "#0066ff";
+      case "warm": return "#cc0000";
+      case "stationary": return "#333333";
+      case "occluded": return "#7a1fa2";
+      default: return "#000000";
+    }
+  }
 
-  overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
-  overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
+  function makeSynopticGeoJsonLayer(url){
+    var group = L.layerGroup();
+    var decorators = [];
+
+    function clearDecorators(){
+      for (var i=0; i<decorators.length; i++){
+        try{ map.removeLayer(decorators[i]); }catch(e){}
+      }
+      decorators = [];
+    }
+
+    fetch(url)
+      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(data){
+
+        var geo = L.geoJSON(data, {
+          pane: "synoptic",
+
+          style: function(f){
+            var p = (f && f.properties) ? f.properties : {};
+            var type = String(p.front || "").toLowerCase();
+            return {
+              color: frontColor(type),
+              weight: Number(p.width || 4),
+              opacity: 0.95
+            };
+          },
+
+          pointToLayer: function(f, latlng){
+            var p = (f && f.properties) ? f.properties : {};
+            var label = String(p.label || p.name || "").trim(); // allow either label or name
+            var m = label.match(/^([HL])\b/i);
+
+            if (m){
+              var hl = m[1].toUpperCase();
+              var cls = (hl === "L") ? "is-low" : "is-high";
+              return L.marker(latlng, {
+                pane: "synopticLabels",
+                interactive: true,
+                icon: L.divIcon({
+                  className: "synoptic-hl",
+                  html: "<div class='synoptic-hl__box " + cls + "'>" + escapeHtml(label) + "</div>",
+                  iconSize: [40,40],
+                  iconAnchor: [20,20]
+                })
+              });
+            }
+
+            return L.circleMarker(latlng, {
+              pane: "synoptic",
+              radius: 3,
+              weight: 1,
+              opacity: 0.85,
+              fillOpacity: 0.75
+            });
+          },
+
+          onEachFeature: function(f, layer){
+            var p = (f && f.properties) ? f.properties : {};
+            var label = String(p.label || p.name || "").trim();
+            var desc  = String(p.description || "").trim();
+            if (label || desc){
+              layer.bindPopup("<b>" + escapeHtml(label) + "</b><br>" + escapeHtml(desc));
+            }
+
+            // Decorate front lines with meteorologist-style symbols
+            if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)){
+              var type = String(p.front || "").toLowerCase();
+
+              // Cold front: blue triangles
+              if (type === "cold"){
+                var decoCold = L.polylineDecorator(layer, {
+                  patterns: [{
+                    offset: 10,
+                    repeat: 32,
+                    symbol: L.Symbol.arrowHead({
+                      pixelSize: 10,
+                      polygon: true,
+                      pathOptions: {
+                        color: "#0066ff",
+                        fillColor: "#0066ff",
+                        fillOpacity: 1,
+                        weight: 0
+                      }
+                    })
+                  }]
+                }).addTo(map);
+                decorators.push(decoCold);
+              }
+
+              // Warm front: red semicircles (divIcon bumps)
+              if (type === "warm"){
+                var decoWarm = L.polylineDecorator(layer, {
+                  patterns: [{
+                    offset: 10,
+                    repeat: 32,
+                    symbol: L.Symbol.marker({
+                      markerOptions: {
+                        icon: L.divIcon({
+                          className: "warm-front-bump",
+                          html: "<div class='warm-bump'></div>",
+                          iconSize: [14,14],
+                          iconAnchor: [7,7]
+                        })
+                      }
+                    })
+                  }]
+                }).addTo(map);
+                decorators.push(decoWarm);
+              }
+
+              // Stationary: alternate blue triangles and red bumps
+              if (type === "stationary"){
+                var decoStat1 = L.polylineDecorator(layer, {
+                  patterns: [{
+                    offset: 10,
+                    repeat: 64,
+                    symbol: L.Symbol.arrowHead({
+                      pixelSize: 10,
+                      polygon: true,
+                      pathOptions: { color:"#0066ff", fillColor:"#0066ff", fillOpacity:1, weight:0 }
+                    })
+                  }]
+                }).addTo(map);
+                var decoStat2 = L.polylineDecorator(layer, {
+                  patterns: [{
+                    offset: 42,
+                    repeat: 64,
+                    symbol: L.Symbol.marker({
+                      markerOptions: {
+                        icon: L.divIcon({
+                          className: "stationary-front-bump",
+                          html: "<div class='warm-bump'></div>",
+                          iconSize: [14,14],
+                          iconAnchor: [7,7]
+                        })
+                      }
+                    })
+                  }]
+                }).addTo(map);
+                decorators.push(decoStat1, decoStat2);
+              }
+
+              // Occluded: alternate purple triangle + purple bump
+              if (type === "occluded"){
+                var decoOcc1 = L.polylineDecorator(layer, {
+                  patterns: [{
+                    offset: 10,
+                    repeat: 64,
+                    symbol: L.Symbol.arrowHead({
+                      pixelSize: 10,
+                      polygon: true,
+                      pathOptions: { color:"#7a1fa2", fillColor:"#7a1fa2", fillOpacity:1, weight:0 }
+                    })
+                  }]
+                }).addTo(map);
+                var decoOcc2 = L.polylineDecorator(layer, {
+                  patterns: [{
+                    offset: 42,
+                    repeat: 64,
+                    symbol: L.Symbol.marker({
+                      markerOptions: {
+                        icon: L.divIcon({
+                          className: "occluded-front-bump",
+                          html: "<div class='occluded-bump'></div>",
+                          iconSize: [14,14],
+                          iconAnchor: [7,7]
+                        })
+                      }
+                    })
+                  }]
+                }).addTo(map);
+                decorators.push(decoOcc1, decoOcc2);
+              }
+            }
+          }
+        });
+
+        group.addLayer(geo);
+      })
+      .catch(function(err){
+        console.log("Synoptic GeoJSON load failed:", url, err);
+      });
+
+    // When toggled off, remove decorator layers too (keeps map clean)
+    group.on("remove", function(){ clearDecorators(); });
+
+    return group;
+  }
+
+  // Add synoptic overlays (start with Apr 14; add others as you build them)
+  overlays["Synoptic: Apr 13 (12Z)"] = makeSynopticGeoJsonLayer("synoptic/2018-04-13_12Z_surface.geojson");
+  overlays["Synoptic: Apr 14 (12Z)"] = makeSynopticGeoJsonLayer("synoptic/2018-04-14_12Z_surface.geojson");
+  overlays["Synoptic: Apr 15 (12Z)"] = makeSynopticGeoJsonLayer("synoptic/2018-04-15_12Z_surface.geojson");
+r.bindPopup("<b>" + escapeHtml(title) + "</b><br>" + escapeHtml(desc));
+        }
+      }
+    }));
+  }
+
+  // Add synoptic overlays (safe even if you only upload one KML to start)
+  var synopticApr13 = makeSynopticKmlLayer("kml/2018-04-13_12Z_surface.kml");
+  var synopticApr14 = makeSynopticKmlLayer("kml/2018-04-14_12Z_surface.kml");
+  var synopticApr15 = makeSynopticKmlLayer("kml/2018-04-15_12Z_surface.kml");
+
+  overlays["Synoptic: Apr 13 (12Z)"] = synopticApr13;
+  overlays["Synoptic: Apr 14 (12Z)"] = synopticApr14;
+  overlays["Synoptic: Apr 15 (12Z)"] = synopticApr15;
 
 
-
-  overlays["MODIS True Color (Satellite)"] = L.layerGroup(); // checkbox only
-  overlays["Boundaries (World/States)"] = stateLinesTile;
   
   // ---------------- SATELLITE (NASA GIBS MODIS True Color) ----------------
   var satEnabled = false;

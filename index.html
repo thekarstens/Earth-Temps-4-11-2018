@@ -586,6 +586,7 @@ body.student-mode .bstatus { display:none !important; }
       <span class="top-sep">—</span>
       <span class="top-question"><span class="top-q-label">Question:</span> How can we use real-time weather data to make safer decisions?</span>
     </div>
+    <button class="bbtn bbtn-story" id="testFrontBtn" title="Jump to the first story stop (testing)">TEST FRONT</button>
     <button class="bbtn bbtn-story" id="beginStoryBtn" title="Begin the guided story">START</button>
   </div>
   <div class="banner-divider" aria-hidden="true"></div>
@@ -1017,6 +1018,20 @@ addTown("Omaha", 41.2565, -95.9345);
 var beginStoryBtn = document.getElementById("beginStoryBtn");
 if (beginStoryBtn) beginStoryBtn.onclick = function(){ storyStarted = true;
     renderStory(storyIndex, true); };
+
+
+
+var testFrontBtn = document.getElementById("testFrontBtn");
+if (testFrontBtn) testFrontBtn.onclick = function(){
+  // Quick jump to the first stop for testing / demo
+  if (!storyItems || !storyItems.length){
+    setStatus("Story not loaded yet (check Google Sheet publish link)");
+    return;
+  }
+  storyStarted = true;
+  storyIndex = 0;
+  renderStory(storyIndex, true);
+};
 
 // Student/Teacher mode (Student hides layer toggles + status)
 var modeBtn = document.getElementById("modeBtn");

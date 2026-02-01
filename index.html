@@ -1228,9 +1228,9 @@ if (radarOpacity){
     if (coldLines.length){
       var coldIcon = L.divIcon({
         className: "",
-        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 8 8)"><polygon points="8,1 15,15 1,15" fill="#1e88e5" /></g></svg>`,
-        iconSize: [14,14],
-        iconAnchor: [7,7]
+        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 8 8)"><polygon points="8,1 15,15 1,15" fill="#1e88e5"/></g></svg>`,
+        iconSize: [16,16],
+        iconAnchor: [8,15]
       });
 
       patterns.push(L.polylineDecorator(coldLines, {
@@ -1246,9 +1246,9 @@ if (radarOpacity){
       // semicircle (filled) — oriented along the line
       var warmIcon = L.divIcon({
         className: "",
-        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 8 8)"><polygon points="8,1 15,15 1,15" fill="#1e88e5" /></g></svg>`,
-        iconSize: [14,14],
-        iconAnchor: [7,7]
+        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(90 8 8)"><path d="M1 15 A7 7 0 0 1 15 15 L15 15 L1 15 Z" fill="#e53935"/></g></svg>`,
+        iconSize: [16,16],
+        iconAnchor: [8,15]
       });
 
       patterns.push(L.polylineDecorator(warmLines, {
@@ -1286,34 +1286,24 @@ if (radarOpacity){
   function makeHLIcon(letter){
     var isH = String(letter).toUpperCase() === "H";
     var fg = isH ? "#1e88e5" : "#e53935";
-    // Circular arrow direction: H = clockwise, L = counter-clockwise
-    var arcPath = isH
-      ? "M 14 30 A 16 16 0 1 1 30 14"   // clockwise-ish arc
-      : "M 40 24 A 16 16 0 1 0 24 40";  // counter-clockwise-ish arc
 
     var svg = `
-      <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L7,3.5 L0,7 Z" fill="${fg}"></path>
-          </marker>
-          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.25)"/>
-          </filter>
-        </defs>
-
-        <circle cx="27" cy="27" r="23" fill="rgba(255,255,255,0.92)" stroke="rgba(0,0,0,0.30)" stroke-width="2" filter="url(#shadow)"/>
-        <path d="${arcPath}" fill="none" stroke="${fg}" stroke-width="3.2" stroke-linecap="round" marker-end="url(#ah)"/>
-        <text x="27" y="33" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="900" fill="${fg}">${isH ? "H" : "L"}</text>
+      <svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.25)"/>
+        </filter>
+        <circle cx="26" cy="26" r="22" fill="rgba(255,255,255,0.92)" stroke="rgba(0,0,0,0.30)" stroke-width="2" filter="url(#shadow)"/>
+        <text x="26" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="900" fill="${fg}">${isH ? "H" : "L"}</text>
       </svg>`;
 
     return L.divIcon({
       className: "",
       html: svg,
-      iconSize: [54, 54],
-      iconAnchor: [27, 27]
+      iconSize: [52, 52],
+      iconAnchor: [26, 26]
     });
   }
+
 
   function frontsPointToLayer(feature, latlng){
     var p = (feature && feature.properties) ? feature.properties : {};

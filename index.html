@@ -7,6 +7,7 @@
 
 <link rel="stylesheet" href="./leaflet.css"/>
 <script src="./leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
 var storyStarted = false; // do not auto-open storyboard
 </script>
@@ -1180,6 +1181,83 @@ if (radarOpacity){
   var frontsLayer = null;
   var frontsLoaded = false;
 
+  // Front symbol decorators (triangles/semicircles)
+  var frontsDecorGroup = null;
+
+  function clearFrontDecorators(){
+    if (frontsDecorGroup){
+      try { map.removeLayer(frontsDecorGroup); } catch(e){}
+      frontsDecorGroup = null;
+    }
+  }
+
+  function buildFrontDecorators(){
+    // Requires leaflet-polylinedecorator
+    if (typeof L === "undefined" || !L.polylineDecorator || !frontsLayer) return;
+
+    clearFrontDecorators();
+
+    var coldLines = [];
+    var warmLines = [];
+
+    frontsLayer.eachLayer(function(layer){
+      if (!layer || !layer.feature || !layer.feature.properties) return;
+      // Only decorate polylines
+      if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
+      var p = layer.feature.properties;
+      var fr = String(p.front || p.FRONT || p.kind || "").toLowerCase();
+      if (fr === "cold") coldLines.push(layer);
+      if (fr === "warm") warmLines.push(layer);
+    });
+
+    var patterns = [];
+
+    if (coldLines.length){
+      var coldIcon = L.divIcon({
+        className: "",
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <polygon points="8,1 15,15 1,15" fill="#1e88e5" />
+               </svg>`,
+        iconSize: [14,14],
+        iconAnchor: [7,7]
+      });
+
+      patterns.push(L.polylineDecorator(coldLines, {
+        patterns: [{
+          offset: 8,
+          repeat: 34,
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: coldIcon } })
+        }]
+      }));
+    }
+
+    if (warmLines.length){
+      // semicircle (filled) — oriented along the line
+      var warmIcon = L.divIcon({
+        className: "",
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935" />
+               </svg>`,
+        iconSize: [14,14],
+        iconAnchor: [7,7]
+      });
+
+      patterns.push(L.polylineDecorator(warmLines, {
+        patterns: [{
+          offset: 8,
+          repeat: 34,
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: warmIcon } })
+        }]
+      }));
+    }
+
+    if (!patterns.length) return;
+
+    frontsDecorGroup = L.layerGroup(patterns);
+    if (frontsEnabled){ frontsDecorGroup.addTo(map); }
+  }
+
+
   function frontsLineStyle(feature){
     var p = (feature && feature.properties) ? feature.properties : {};
     var ftype = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
@@ -1258,6 +1336,7 @@ if (radarOpacity){
           onEachFeature: frontsOnEach
         });
         if (frontsEnabled){ frontsLayer.addTo(map); }
+        buildFrontDecorators();
       })
       .catch(function(err){
         console.warn("Fronts GeoJSON not loaded (expected fronts.geojson in repo root).", err);
@@ -1268,10 +1347,13 @@ if (radarOpacity){
   function updateFronts(){
     ensureFronts();
     if (!frontsLayer) return;
+
     if (frontsEnabled){
       if (!map.hasLayer(frontsLayer)) frontsLayer.addTo(map);
+      if (frontsDecorGroup && !map.hasLayer(frontsDecorGroup)) frontsDecorGroup.addTo(map);
     } else {
       if (map.hasLayer(frontsLayer)) map.removeLayer(frontsLayer);
+      if (frontsDecorGroup && map.hasLayer(frontsDecorGroup)) map.removeLayer(frontsDecorGroup);
     }
   }
 

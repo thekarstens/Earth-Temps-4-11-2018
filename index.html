@@ -1204,13 +1204,10 @@ if (radarOpacity){
       if (!layer || !layer.feature || !layer.feature.properties) return;
       // Only decorate polylines
       if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
-
-      var p = layer.feature.properties || {};
-      var fr = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
-
-      // Be forgiving: "cold", "cold front", "COLD_FRONT", etc.
-      if (fr.indexOf("cold") !== -1) coldLines.push(layer);
-      if (fr.indexOf("warm") !== -1) warmLines.push(layer);
+      var p = layer.feature.properties;
+      var fr = String(p.front || p.FRONT || p.kind || "").toLowerCase();
+      if (fr === "cold") coldLines.push(layer);
+      if (fr === "warm") warmLines.push(layer);
     });
 
     var patterns = [];
@@ -1218,21 +1215,20 @@ if (radarOpacity){
     if (coldLines.length){
       var coldIcon = L.divIcon({
         className: "",
-        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        html: `<svg width="18" height="18" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                  <polygon points="8,1 15,15 1,15" fill="#1e88e5" />
                </svg>`,
-        iconSize: [14,14],
-        iconAnchor: [7,7]
+        iconSize: [18,18],
+        iconAnchor: [9,9]
       });
 
-      patterns.push(L.polylineDecorator(coldLines, {
+      var coldGroup = L.featureGroup(coldLines);
+
+      patterns.push(L.polylineDecorator(coldGroup, {
         patterns: [{
           offset: 8,
-          repeat: 34,
-          symbol: L.Symbol.marker({
-            rotate: true,
-            markerOptions: { icon: coldIcon, pane: "lines" }
-          })
+          repeat: 28,
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: coldIcon } })
         }]
       }));
     }
@@ -1241,21 +1237,20 @@ if (radarOpacity){
       // semicircle (filled) — oriented along the line
       var warmIcon = L.divIcon({
         className: "",
-        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        html: `<svg width="18" height="18" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                  <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935" />
                </svg>`,
-        iconSize: [14,14],
-        iconAnchor: [7,7]
+        iconSize: [18,18],
+        iconAnchor: [9,9]
       });
 
-      patterns.push(L.polylineDecorator(warmLines, {
+      var warmGroup = L.featureGroup(warmLines);
+
+      patterns.push(L.polylineDecorator(warmGroup, {
         patterns: [{
           offset: 8,
-          repeat: 34,
-          symbol: L.Symbol.marker({
-            rotate: true,
-            markerOptions: { icon: warmIcon, pane: "lines" }
-          })
+          repeat: 28,
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: warmIcon } })
         }]
       }));
     }
@@ -1263,12 +1258,9 @@ if (radarOpacity){
     if (!patterns.length) return;
 
     frontsDecorGroup = L.layerGroup(patterns);
-
-    // Add immediately if fronts are enabled
-    if (frontsEnabled){
-      try { frontsDecorGroup.addTo(map); } catch(e){}
-    }
+    if (frontsEnabled){ frontsDecorGroup.addTo(map); }
   }
+
 
   function frontsLineStyle(feature){
     var p = (feature && feature.properties) ? feature.properties : {};

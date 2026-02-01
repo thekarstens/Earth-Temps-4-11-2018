@@ -959,13 +959,14 @@ pointToLayer: function(feature, latlng){
     .catch(function(err){ console.log("HRRR temp load failed:", err); });
 
 // We'll manage radar ourselves but still expose a checkbox
-  var lc = 
 /* ===================== MODIS Satellite (GIBS) ===================== */
 // GIBS WMTS (Web Mercator / EPSG:3857) - daily imagery
 // We'll automatically keep the MODIS date in sync with the current timeline Z time (curZ).
 function ymdFromISOZ(isoZ){
-  // '2018-04-09T19:00:00Z' -> '2018-04-09'
-  return (isoZ || '').slice(0,10);
+  // Accept either a Date (preferred) or an ISO Z string like "2018-04-14T00:00:00Z"
+  if (isoZ instanceof Date) return isoZ.toISOString().slice(0,10);
+  if (typeof isoZ === 'string') return (isoZ || '').slice(0,10);
+  return '';
 }
 let modisDateYMD = ymdFromISOZ(curZ) || "2018-04-09";
 

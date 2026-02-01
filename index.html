@@ -1270,7 +1270,10 @@ if (radarOpacity){
           repeat: 34,
           symbol: L.Symbol.marker({
             rotate: true,
-            angleCorrection: 90,    // 90° RIGHT relative to line direction
+            // Flip warm-front symbols to the *other* side of the line.
+            // PolylineDecorator orients symbols based on line direction; shifting by 180° moves
+            // the bumps to the opposite side while keeping the flat edge anchored on the line.
+            angleCorrection: -90,   // 90° right + 180° = 270° (same as -90)
             markerOptions: { icon: warmIcon }
           })
         }]

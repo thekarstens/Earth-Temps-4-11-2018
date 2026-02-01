@@ -554,6 +554,11 @@ body.student-mode .bstatus { display:none !important; }
   }
 
 </style>
+
+    <!-- Leaflet.Velocity for particle animations -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.min.js"></script>
+
 </head>
 
 <body>
@@ -762,8 +767,6 @@ function ensureEra5Overlays(){
   // State boundary outline handled via GeoJSON (no labels)
 var overlays = {};
   overlays["Composite Radar (Observed)"] = L.layerGroup(); // placeholder group
-
-  overlays["GFS Snow Forecast"] = L.layerGroup(); // checkbox only; overlay managed manually
 
   overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
   overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
@@ -1030,17 +1033,6 @@ const metarPanel = new HtmlPanelLayer({
   height: "440px"
 });
 
-// Wind particles panel (point this at your working wind particles page in the repo)
-const windPanel = new HtmlPanelLayer({
-  id: "windPanel",
-  title: "Wind Particles (standalone page)",
-  iframeSrc: "wind_particles.html",
-  width: "560px",
-  height: "440px"
-});
-
-overlays["METARs (Panel)"] = metarPanel;
-overlays["Wind Particles (Panel)"] = windPanel;
 
 
 L.control.layers(null, overlays, { collapsed:false }).addTo(map);
@@ -1058,7 +1050,6 @@ L.control.layers(null, overlays, { collapsed:false }).addTo(map);
     // State lines are driven by TEMP and are not part of this exclusivity.
     var mainLayers = [
       overlays["Composite Radar (Observed)"],
-      overlays["GFS Snow Forecast"],
       overlays["Global Temp (ERA5) – Apr 10 (21Z)"],
       overlays["Global Temp (ERA5) – Apr 11 (21Z)"],
       hrrrTempLayer
@@ -1076,7 +1067,7 @@ L.control.layers(null, overlays, { collapsed:false }).addTo(map);
       obsRadarEnabled = false;
       if (obsRadarOverlay) map.removeLayer(obsRadarOverlay);
     }
-    if (!map.hasLayer(overlays["GFS Snow Forecast"])){
+    if (overlays["GFS Snow Forecast"] && !map.hasLayer(overlays["GFS Snow Forecast"])){
       gfsSnowEnabled = false;
       if (gfsSnowOverlay) map.removeLayer(gfsSnowOverlay);
     }
@@ -1092,7 +1083,6 @@ L.control.layers(null, overlays, { collapsed:false }).addTo(map);
 map.on("overlayadd", function(e){
     enforceSingleOverlay(e.layer);
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
-    if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
       era5Apr10Enabled = true;
       era5Apr11Enabled = false;
@@ -1119,7 +1109,6 @@ map.on("overlayadd", function(e){
 });
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
-    if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) { era5Apr10Enabled = false; updateEra5Global(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) { era5Apr11Enabled = false; updateEra5Global(); updateProductLabel(); }
     if (e.layer === hrrrTempLayer) {

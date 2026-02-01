@@ -1229,7 +1229,7 @@ if (radarOpacity){
       var coldIcon = L.divIcon({
         className: "",
         html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                 <polygon points="8,1 15,15 1,15" fill="#1e88e5" />
+                 <polygon points="8,15 15,1 1,1" fill="#1e88e5" />
                </svg>`,
         iconSize: [14,14],
         iconAnchor: [7,7]
@@ -1249,7 +1249,7 @@ if (radarOpacity){
       var warmIcon = L.divIcon({
         className: "",
         html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                 <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935" />
+                 <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935" transform="rotate(180 8 8)" />
                </svg>`,
         iconSize: [14,14],
         iconAnchor: [7,7]

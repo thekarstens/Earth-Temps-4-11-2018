@@ -1173,37 +1173,94 @@ if (radarOpacity){
   var era5Apr11Enabled = false;
 
   
-  // Fronts overlay (GeoJSON lines you upload)
+  
+  // Fronts + highs/lows overlay (GeoJSON you upload)
+  // Expected file in repo root: fronts.geojson
   var frontsEnabled = false;
   var frontsLayer = null;
   var frontsLoaded = false;
 
-  function frontsStyle(feature){
+  function frontsLineStyle(feature){
     var p = (feature && feature.properties) ? feature.properties : {};
-    var t = String(p.type || p.front || p.FRONT || p.kind || "").toLowerCase();
-    // basic colors by type
+    var ftype = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
+
     var color = "#111";
-    if (t.includes("cold")) color = "#1e88e5";
-    else if (t.includes("warm")) color = "#e53935";
-    else if (t.includes("occluded")) color = "#8e24aa";
-    else if (t.includes("stationary")) color = "#43a047";
-    return { color: color, weight: 3, opacity: 0.95 };
+    if (ftype.includes("cold")) color = "#1e88e5";
+    else if (ftype.includes("warm")) color = "#e53935";
+    else if (ftype.includes("occluded")) color = "#8e24aa";
+    else if (ftype.includes("stationary")) color = "#43a047";
+
+    var w = parseFloat(p.width);
+    if (!isFinite(w)) w = 3;
+
+    return { color: color, weight: w, opacity: 0.95 };
+  }
+
+  function makeHLIcon(letter){
+    // Big, TV-style H/L
+    var isH = String(letter).toUpperCase() === "H";
+    var bg = isH ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.92)";
+    var fg = isH ? "#1e88e5" : "#e53935";
+    return L.divIcon({
+      className: "",
+      html:
+        "<div style='width:34px;height:34px;border-radius:50%;background:"+bg+";border:2px solid rgba(0,0,0,0.30);"+
+        "display:flex;align-items:center;justify-content:center;"+
+        "box-shadow:0 3px 12px rgba(0,0,0,0.28);"+
+        "font:900 20px/1 Arial,sans-serif;color:"+fg+";'>" + (isH ? "H" : "L") + "</div>",
+      iconSize: [34, 34],
+      iconAnchor: [17, 17]
+    });
+  }
+
+  function frontsPointToLayer(feature, latlng){
+    var p = (feature && feature.properties) ? feature.properties : {};
+    var sym = String(p.symbol || p.SYMBOL || p.pressure || p.PRESSURE || "").toUpperCase();
+    // Accept either symbol=H/L or pressure=High/Low
+    var letter = "H";
+    if (sym.includes("LOW") || sym === "L") letter = "L";
+    if (sym.includes("HIGH") || sym === "H") letter = "H";
+
+    return L.marker(latlng, { icon: makeHLIcon(letter), pane: "lines" });
+  }
+
+  function frontsOnEach(feature, layer){
+    var p = (feature && feature.properties) ? feature.properties : {};
+    // Light tooltip for teachers/students
+    var txt = "";
+    if (feature.geometry && feature.geometry.type === "Point"){
+      var sym = (p.symbol || p.pressure || "").toString();
+      var val = (p.value || p.press || p.pressure_mb || p.pressure_hpa || "").toString();
+      txt = (sym ? sym : "Pressure") + (val ? (" " + val) : "");
+    } else {
+      var fr = (p.front || p.type || "").toString();
+      txt = fr ? (fr.charAt(0).toUpperCase() + fr.slice(1) + " front") : "Front";
+    }
+    if (txt && layer && layer.bindTooltip){
+      layer.bindTooltip(txt, { direction:"top", opacity:0.9, sticky:true });
+    }
   }
 
   function ensureFronts(){
     if (frontsLayer || frontsLoaded) return;
     frontsLoaded = true;
+
     fetch("fronts.geojson?v=" + Date.now())
       .then(function(res){
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
       })
       .then(function(geo){
-        frontsLayer = L.geoJSON(geo, { style: frontsStyle, pane: "lines" });
+        frontsLayer = L.geoJSON(geo, {
+          pane: "lines",
+          style: frontsLineStyle,
+          pointToLayer: frontsPointToLayer,
+          onEachFeature: frontsOnEach
+        });
         if (frontsEnabled){ frontsLayer.addTo(map); }
       })
       .catch(function(err){
-        console.warn("Fronts GeoJSON not found yet (expected fronts.geojson in repo root).", err);
+        console.warn("Fronts GeoJSON not loaded (expected fronts.geojson in repo root).", err);
         frontsLayer = null;
       });
   }
@@ -1217,6 +1274,7 @@ if (radarOpacity){
       if (map.hasLayer(frontsLayer)) map.removeLayer(frontsLayer);
     }
   }
+
 // NOTE: Leaflet basemaps (OSM/Carto) are Web Mercator (EPSG:3857).
 // If your ERA5 PNG was rendered in plain lat/lon (Plate Carree), it will look distorted.
 // Use the Colab exporter to "warp to Mercator" and then these bounds will line up.

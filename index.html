@@ -7,6 +7,7 @@
 
 <link rel="stylesheet" href="./leaflet.css"/>
 <script src="./leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
 var storyStarted = false; // do not auto-open storyboard
@@ -1191,118 +1192,83 @@ if (radarOpacity){
     }
   }
 
-  function buildFrontDecorators(){
-    // Requires leaflet-polylinedecorator
-    if (typeof L === "undefined" || typeof map === "undefined") return;
+  function buildFrontDecorators(_retry){
 
-    if (!L.polylineDecorator){
+    _retry = _retry || 0;
+    // If the PolylineDecorator plugin is still loading, retry a few times.
+    if (!L || typeof L.polylineDecorator !== "function") {
+      if (_retry < 15) {
+        if (_retry === 0) console.warn("leaflet-polylinedecorator not ready yet; retrying…");
+        setTimeout(function(){ buildFrontDecorators(_retry + 1); }, 200);
+        return;
+      }
       console.warn("leaflet-polylinedecorator did not load: triangles/semicircles disabled.");
       return;
     }
-    if (!frontsLayer){
-      console.warn("frontsLayer not ready yet (no GeoJSON loaded).");
-      return;
-    }
+    // Requires leaflet-polylinedecorator
+    if (typeof L === "undefined" || !L.polylineDecorator || !frontsLayer) return;
 
     clearFrontDecorators();
 
-    // Collect polylines by type
     var coldLines = [];
     var warmLines = [];
 
     frontsLayer.eachLayer(function(layer){
-      try{
-        if (!layer || !layer.feature || !layer.feature.properties) return;
-        // Only decorate polylines (not polygons / points)
-        if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
-
-        var p = layer.feature.properties;
-        var fr = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
-
-        // Be forgiving: accept 'cold front', 'warm front', etc.
-        if (fr.includes("cold")) coldLines.push(layer);
-        if (fr.includes("warm")) warmLines.push(layer);
-      }catch(e){}
+      if (!layer || !layer.feature || !layer.feature.properties) return;
+      // Only decorate polylines
+      if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
+      var p = layer.feature.properties;
+      var fr = String(p.front || p.FRONT || p.kind || "").toLowerCase();
+      if (fr === "cold") coldLines.push(layer);
+      if (fr === "warm") warmLines.push(layer);
     });
-
-    if (!coldLines.length && !warmLines.length){
-      console.warn("No cold/warm polylines found to decorate. Check GeoJSON properties.front values.");
-      return;
-    }
-
-    // Put symbols in their own high-zindex pane so they never hide behind other overlays
-    if (!map.getPane("frontSymbols")){
-      map.createPane("frontSymbols");
-      map.getPane("frontSymbols").style.zIndex = 650; // above overlays/lines
-      map.getPane("frontSymbols").style.pointerEvents = "none";
-    }
 
     var patterns = [];
 
-    function makeSvgIcon(svgHtml, size){
-      return L.divIcon({
-        className: "front-symbol",
-        html: svgHtml,
-        iconSize: [size, size],
-        iconAnchor: [size/2, size/2]
+    if (coldLines.length){
+      var coldIcon = L.divIcon({
+        className: "",
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <polygon points="8,1 15,15 1,15" fill="#1e88e5" />
+               </svg>`,
+        iconSize: [14,14],
+        iconAnchor: [7,7]
       });
+
+      patterns.push(L.polylineDecorator(coldLines, {
+        patterns: [{
+          offset: 8,
+          repeat: 34,
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: coldIcon } })
+        }]
+      }));
     }
 
-    // Slightly larger so it's obvious to students
-    var triIcon = makeSvgIcon(
-      `<svg width="18" height="18" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-         <polygon points="8,1 15,15 1,15" fill="#1e88e5"/>
-       </svg>`,
-      18
-    );
+    if (warmLines.length){
+      // semicircle (filled) — oriented along the line
+      var warmIcon = L.divIcon({
+        className: "",
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935" />
+               </svg>`,
+        iconSize: [14,14],
+        iconAnchor: [7,7]
+      });
 
-    var semiIcon = makeSvgIcon(
-      `<svg width="18" height="18" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-         <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935"/>
-       </svg>`,
-      18
-    );
-
-    try{
-      if (coldLines.length){
-        var coldGroup = L.featureGroup(coldLines);
-        patterns.push(L.polylineDecorator(coldGroup, {
-          patterns: [{
-            offset: 10,
-            repeat: 26,
-            symbol: L.Symbol.marker({
-              rotate: true,
-              markerOptions: { icon: triIcon, pane: "frontSymbols", interactive: false }
-            })
-          }]
-        }));
-      }
-
-      if (warmLines.length){
-        var warmGroup = L.featureGroup(warmLines);
-        patterns.push(L.polylineDecorator(warmGroup, {
-          patterns: [{
-            offset: 10,
-            repeat: 26,
-            symbol: L.Symbol.marker({
-              rotate: true,
-              markerOptions: { icon: semiIcon, pane: "frontSymbols", interactive: false }
-            })
-          }]
-        }));
-      }
-    }catch(e){
-      console.error("Error creating front decorators:", e);
-      return;
+      patterns.push(L.polylineDecorator(warmLines, {
+        patterns: [{
+          offset: 8,
+          repeat: 34,
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: warmIcon } })
+        }]
+      }));
     }
+
+    if (!patterns.length) return;
 
     frontsDecorGroup = L.layerGroup(patterns);
-
-    // Add immediately if layer is enabled
     if (frontsEnabled){ frontsDecorGroup.addTo(map); }
   }
-
-
 
 
   function frontsLineStyle(feature){

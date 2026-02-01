@@ -7,6 +7,7 @@
 
 <link rel="stylesheet" href="./leaflet.css"/>
 <script src="./leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
 var storyStarted = false; // do not auto-open storyboard
@@ -1191,7 +1192,19 @@ if (radarOpacity){
     }
   }
 
-  function buildFrontDecorators(){
+  function buildFrontDecorators(_retry){
+
+    _retry = _retry || 0;
+    // If the PolylineDecorator plugin is still loading, retry a few times.
+    if (!L || typeof L.polylineDecorator !== "function") {
+      if (_retry < 15) {
+        if (_retry === 0) console.warn("leaflet-polylinedecorator not ready yet; retrying…");
+        setTimeout(function(){ buildFrontDecorators(_retry + 1); }, 200);
+        return;
+      }
+      console.warn("leaflet-polylinedecorator did not load: triangles/semicircles disabled.");
+      return;
+    }
     // Requires leaflet-polylinedecorator
     if (typeof L === "undefined" || !L.polylineDecorator || !frontsLayer) return;
 
@@ -1215,9 +1228,7 @@ if (radarOpacity){
     if (coldLines.length){
       var coldIcon = L.divIcon({
         className: "",
-        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                 <polygon points="8,1 15,15 1,15" fill="#1e88e5" />
-               </svg>`,
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 8 8)"><polygon points="8,1 15,15 1,15" fill="#1e88e5" /></g></svg>`,
         iconSize: [14,14],
         iconAnchor: [7,7]
       });
@@ -1226,7 +1237,7 @@ if (radarOpacity){
         patterns: [{
           offset: 8,
           repeat: 34,
-          symbol: L.Symbol.marker({ rotate: true, angleCorrection: -90, markerOptions: { icon: coldIcon } })
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: coldIcon } })
         }]
       }));
     }
@@ -1235,9 +1246,7 @@ if (radarOpacity){
       // semicircle (filled) — oriented along the line
       var warmIcon = L.divIcon({
         className: "",
-        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                 <path d="M1,8 A7,7 0 0 1 15,8 L15,15 L1,15 Z" fill="#e53935" />
-               </svg>`,
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 8 8)"><polygon points="8,1 15,15 1,15" fill="#1e88e5" /></g></svg>`,
         iconSize: [14,14],
         iconAnchor: [7,7]
       });
@@ -1246,7 +1255,7 @@ if (radarOpacity){
         patterns: [{
           offset: 8,
           repeat: 34,
-          symbol: L.Symbol.marker({ rotate: true, angleCorrection: 90, markerOptions: { icon: warmIcon } })
+          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: warmIcon } })
         }]
       }));
     }
@@ -1275,42 +1284,34 @@ if (radarOpacity){
   }
 
   function makeHLIcon(letter){
-    // Bigger, TV-style H/L with circulation arrow (H = clockwise, L = counterclockwise)
     var isH = String(letter).toUpperCase() === "H";
-    var bg = "rgba(255,255,255,0.92)";
     var fg = isH ? "#1e88e5" : "#e53935";
-    var sweep = isH ? 1 : 0; // SVG arc sweep-flag (1 = clockwise, 0 = counterclockwise)
-    var markerId = isH ? "arrowH" : "arrowL";
+    // Circular arrow direction: H = clockwise, L = counter-clockwise
+    var arcPath = isH
+      ? "M 14 30 A 16 16 0 1 1 30 14"   // clockwise-ish arc
+      : "M 40 24 A 16 16 0 1 0 24 40";  // counter-clockwise-ish arc
 
-    var svg =
-      `<svg width="46" height="46" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg">
-         <defs>
-           <marker id="${markerId}" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-             <path d="M0,0 L7,3.5 L0,7 Z" fill="${fg}"></path>
-           </marker>
-         </defs>
+    var svg = `
+      <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="${fg}"></path>
+          </marker>
+          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.25)"/>
+          </filter>
+        </defs>
 
-         <!-- Outer badge -->
-         <circle cx="23" cy="23" r="20" fill="${bg}" stroke="rgba(0,0,0,0.30)" stroke-width="2"/>
-
-         <!-- Circulation arrow -->
-         <path d="M23 7 A16 16 0 1 ${sweep} 7 23"
-               fill="none" stroke="${fg}" stroke-width="3"
-               stroke-linecap="round" marker-end="url(#${markerId})"/>
-
-         <!-- Letter -->
-         <text x="23" y="29" text-anchor="middle"
-               font-family="Arial, sans-serif" font-weight="900"
-               font-size="26" fill="${fg}">${isH ? "H" : "L"}</text>
-       </svg>`;
+        <circle cx="27" cy="27" r="23" fill="rgba(255,255,255,0.92)" stroke="rgba(0,0,0,0.30)" stroke-width="2" filter="url(#shadow)"/>
+        <path d="${arcPath}" fill="none" stroke="${fg}" stroke-width="3.2" stroke-linecap="round" marker-end="url(#ah)"/>
+        <text x="27" y="33" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="900" fill="${fg}">${isH ? "H" : "L"}</text>
+      </svg>`;
 
     return L.divIcon({
       className: "",
-      html:
-        "<div style='width:46px;height:46px;display:flex;align-items:center;justify-content:center;" +
-        "filter: drop-shadow(0 3px 10px rgba(0,0,0,0.28));'>" + svg + "</div>",
-      iconSize: [46, 46],
-      iconAnchor: [23, 23]
+      html: svg,
+      iconSize: [54, 54],
+      iconAnchor: [27, 27]
     });
   }
 

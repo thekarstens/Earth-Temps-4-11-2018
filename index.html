@@ -1226,36 +1226,53 @@ if (radarOpacity){
     var patterns = [];
 
     if (coldLines.length){
+      // Blue triangles (cold front) — base anchored to the line.
+      // We keep the triangle upright in SVG, then rotate relative to the polyline using angleCorrection.
       var coldIcon = L.divIcon({
         className: "",
-        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 8 8)"><polygon points="8,1 15,15 1,15" fill="#1e88e5"/></g></svg>`,
+        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <polygon points="8,1 15,15 1,15" fill="#1e88e5"/>
+               </svg>`,
         iconSize: [16,16],
-        iconAnchor: [8,15]
+        // Put the *base* on the line (slightly below the icon box).
+        iconAnchor: [8,16]
       });
 
       patterns.push(L.polylineDecorator(coldLines, {
         patterns: [{
           offset: 8,
           repeat: 34,
-          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: coldIcon } })
+          symbol: L.Symbol.marker({
+            rotate: true,
+            angleCorrection: -90,   // 90° LEFT relative to line direction
+            markerOptions: { icon: coldIcon }
+          })
         }]
       }));
     }
 
     if (warmLines.length){
-      // semicircle (filled) — oriented along the line
+      // Red semicircles (warm front) — flat side anchored to the line.
+      // SVG is a half-disk with the flat edge on the bottom; we rotate relative to the polyline.
       var warmIcon = L.divIcon({
         className: "",
-        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(90 8 8)"><path d="M1 15 A7 7 0 0 1 15 15 L15 15 L1 15 Z" fill="#e53935"/></g></svg>`,
+        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <path d="M1 15 A7 7 0 0 1 15 15 Z" fill="#e53935"/>
+               </svg>`,
         iconSize: [16,16],
-        iconAnchor: [8,15]
+        // Flat edge sits on the line.
+        iconAnchor: [8,16]
       });
 
       patterns.push(L.polylineDecorator(warmLines, {
         patterns: [{
           offset: 8,
           repeat: 34,
-          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: warmIcon } })
+          symbol: L.Symbol.marker({
+            rotate: true,
+            angleCorrection: 90,    // 90° RIGHT relative to line direction
+            markerOptions: { icon: warmIcon }
+          })
         }]
       }));
     }

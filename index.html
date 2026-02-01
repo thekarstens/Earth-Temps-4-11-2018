@@ -1204,10 +1204,13 @@ if (radarOpacity){
       if (!layer || !layer.feature || !layer.feature.properties) return;
       // Only decorate polylines
       if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
-      var p = layer.feature.properties;
-      var fr = String(p.front || p.FRONT || p.kind || "").toLowerCase();
-      if (fr === "cold") coldLines.push(layer);
-      if (fr === "warm") warmLines.push(layer);
+
+      var p = layer.feature.properties || {};
+      var fr = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
+
+      // Be forgiving: "cold", "cold front", "COLD_FRONT", etc.
+      if (fr.indexOf("cold") !== -1) coldLines.push(layer);
+      if (fr.indexOf("warm") !== -1) warmLines.push(layer);
     });
 
     var patterns = [];
@@ -1226,7 +1229,10 @@ if (radarOpacity){
         patterns: [{
           offset: 8,
           repeat: 34,
-          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: coldIcon } })
+          symbol: L.Symbol.marker({
+            rotate: true,
+            markerOptions: { icon: coldIcon, pane: "lines" }
+          })
         }]
       }));
     }
@@ -1246,7 +1252,10 @@ if (radarOpacity){
         patterns: [{
           offset: 8,
           repeat: 34,
-          symbol: L.Symbol.marker({ rotate: true, markerOptions: { icon: warmIcon } })
+          symbol: L.Symbol.marker({
+            rotate: true,
+            markerOptions: { icon: warmIcon, pane: "lines" }
+          })
         }]
       }));
     }
@@ -1254,9 +1263,12 @@ if (radarOpacity){
     if (!patterns.length) return;
 
     frontsDecorGroup = L.layerGroup(patterns);
-    if (frontsEnabled){ frontsDecorGroup.addTo(map); }
-  }
 
+    // Add immediately if fronts are enabled
+    if (frontsEnabled){
+      try { frontsDecorGroup.addTo(map); } catch(e){}
+    }
+  }
 
   function frontsLineStyle(feature){
     var p = (feature && feature.properties) ? feature.properties : {};

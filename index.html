@@ -669,6 +669,34 @@ var WORLD_BOUNDS = L.latLngBounds(
   L.latLng(-85.05112878, -180),
   L.latLng( 85.05112878,  180)
 );
+
+  // --- BASEMAP + MAP INIT (must happen before any layer .addTo(map)) ---
+  // Light basemap by default (good for overlays).
+  const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  });
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  });
+
+  // Create the Leaflet map instance.
+  // IMPORTANT: without this, the browser exposes the <div id="map"> as a global `map` variable,
+  // and Leaflet layers will crash with `t.addLayer is not a function`.
+  const map = L.map('map', {
+    center: [43.7, -96.7],
+    zoom: 5,
+    zoomControl: false,
+    preferCanvas: true,
+    layers: [cartoLight]
+  });
+
+  const baseLayers = {
+    'Carto Light': cartoLight,
+    'OpenStreetMap': osm
+  };
+
 function ensureEra5Overlays(){
     if (!era5Apr10Overlay){
       era5Apr10Overlay = L.imageOverlay(
@@ -1035,7 +1063,7 @@ const metarPanel = new HtmlPanelLayer({
 
 
 
-L.control.layers(null, overlays, { collapsed:false }).addTo(map);
+L.control.layers(baseLayers, overlays, { collapsed:false }).addTo(map);
 
   // Remove any base-layer radio section if Leaflet created it empty
   setTimeout(function(){

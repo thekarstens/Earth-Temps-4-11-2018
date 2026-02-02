@@ -1946,15 +1946,22 @@ function updateAlerts(){
   }
 
   async function fetchAsosRows(z){
-    // Pull one timestamp worth of obs for all stations returned by the service.
-    const y=z.getUTCFullYear(), mo=pad2(z.getUTCMonth()+1), da=pad2(z.getUTCDate());
-    const hh=pad2(z.getUTCHours()), mm=pad2(z.getUTCMinutes());
+    // Pull an hour window of obs for all stations returned by the service.
+    // (IEM ASOS can return empty when start==end; grabbing a window is more reliable.)
+    const z1 = z;
+    const z2 = new Date(z.getTime() + 59 * 60 * 1000); // +59 minutes
+
+    const y1=z1.getUTCFullYear(), mo1=pad2(z1.getUTCMonth()+1), da1=pad2(z1.getUTCDate());
+    const hh1=pad2(z1.getUTCHours()), mm1=pad2(z1.getUTCMinutes());
+    const y2=z2.getUTCFullYear(), mo2=pad2(z2.getUTCMonth()+1), da2=pad2(z2.getUTCDate());
+    const hh2=pad2(z2.getUTCHours()), mm2=pad2(z2.getUTCMinutes());
+
     const url =
       "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?" +
       "data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
       "&tz=UTC&format=comma&latlon=yes&" +
-      `year1=${y}&month1=${mo}&day1=${da}&hour1=${hh}&minute1=${mm}&` +
-      `year2=${y}&month2=${mo}&day2=${da}&hour2=${hh}&minute2=${mm}`;
+      `year1=${y1}&month1=${mo1}&day1=${da1}&hour1=${hh1}&minute1=${mm1}&` +
+      `year2=${y2}&month2=${mo2}&day2=${da2}&hour2=${hh2}&minute2=${mm2}`;
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("ASOS fetch failed: " + res.status);
     const text = await res.text();

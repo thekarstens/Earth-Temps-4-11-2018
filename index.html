@@ -1945,7 +1945,7 @@ function updateAlerts(){
     return out;
   }
 
-  async async function fetchAsosRows(z){
+  async function fetchAsosRows(z){
     // Pull an hour window of obs for all stations returned by the service.
     // (IEM ASOS can return empty when start==end; grabbing a window is more reliable.)
     const z1 = z;
@@ -1959,7 +1959,7 @@ function updateAlerts(){
     const url =
       "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?" +
       "data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
-      "&tz=UTC&format=comma&latlon=yes&${netQS}&report_type=3&" +
+    const url = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=" + encodeURIComponent(station) + "&data=tmpf&data=dwpf&data=sknt&data=gust&data=relh&data=mslp&data=alti&data=vsby&data=skyc1&data=skyl1&data=wxcodes" + "&year1=" + ymd.slice(0,4) + "&month1=" + ymd.slice(5,7) + "&day1=" + ymd.slice(8,10) + "&year2=" + ymd.slice(0,4) + "&month2=" + ymd.slice(5,7) + "&day2=" + ymd.slice(8,10) + "&tz=UTC&format=comma&latlon=yes&" + netQS + "&report_type=3&" + "direct=no&report_type=3";
       `year1=${y1}&month1=${mo1}&day1=${da1}&hour1=${hh1}&minute1=${mm1}&` +
       `year2=${y2}&month2=${mo2}&day2=${da2}&hour2=${hh2}&minute2=${mm2}`;
     const res = await fetch(url, { cache: "no-store" });
@@ -2009,7 +2009,7 @@ function updateAlerts(){
 
   let metarLastMinuteKey = null;
 
-  async async function updateMetars(){
+  async function updateMetars(){
     if (!map.hasLayer(metarLayer)) return;
 
     const minuteKey = toISOZ(curZ).slice(0,12); // yyyymmddHHMM (minute precision)

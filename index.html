@@ -1945,7 +1945,7 @@ function updateAlerts(){
     return out;
   }
 
-  async function fetchAsosRows(z){
+  async async function fetchAsosRows(z){
     // Pull an hour window of obs for all stations returned by the service.
     // (IEM ASOS can return empty when start==end; grabbing a window is more reliable.)
     const z1 = z;
@@ -2009,7 +2009,7 @@ function updateAlerts(){
 
   let metarLastMinuteKey = null;
 
-  async function updateMetars(){
+  async async function updateMetars(){
     if (!map.hasLayer(metarLayer)) return;
 
     const minuteKey = toISOZ(curZ).slice(0,12); // yyyymmddHHMM (minute precision)

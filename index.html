@@ -553,6 +553,20 @@ body.student-mode .bstatus { display:none !important; }
     letter-spacing: 0.2px;
   }
 
+
+  .city-label {
+    font-family: Arial, sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    color: #000;
+    background: rgba(255,255,255,0.92);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 2px solid rgba(0,0,0,0.15);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    white-space: nowrap;
+  }
+
 </style>
 
     <!-- Leaflet.Velocity for particle animations -->
@@ -687,7 +701,7 @@ var WORLD_BOUNDS = L.latLngBounds(
   const map = L.map('map', {
     center: [43.7, -96.7],
     zoom: 5,
-    zoomControl: false,
+    zoomControl: true,
     preferCanvas: true,
     layers: [cartoLight]
   });
@@ -793,7 +807,13 @@ function ensureEra5Overlays(){
 
   // Layer control (NO extra base layer picker)
   // State boundary outline handled via GeoJSON (no labels)
-var overlays = {};
+var overlays = {
+  "City Labels": cityLabelLayer,
+
+  "METAR Stations": metarLayer,
+  "Surface Wind Particles": surfaceWindPlaceholder,
+  "Jetstream Particles": jetstreamPlaceholder,
+};
   overlays["Composite Radar (Observed)"] = L.layerGroup(); // placeholder group
 
   overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
@@ -1064,6 +1084,69 @@ const metarPanel = new HtmlPanelLayer({
 
 
 
+
+// --- METAR Layers (points) ---
+var metarLayer = L.geoJSON(null, {
+  pointToLayer: function (feature, latlng) {
+    var props = feature.properties || {};
+    var temp = (props.temp_f !== undefined) ? props.temp_f : (props.tempF !== undefined ? props.tempF : "");
+    var html = '<div style="background:rgba(255,255,255,0.9);border:2px solid rgba(0,0,0,0.15);border-radius:12px;padding:2px 8px;font-weight:800;">'
+      + (props.id || props.station || "") + (temp!=="" ? (" " + temp + "°") : "")
+      + '</div>';
+    return L.marker(latlng, { icon: L.divIcon({className:'', html: html, iconSize: null}) });
+  }
+});
+function loadMetars(url){
+  return fetch(url).then(r=>r.json()).then(j=>{
+    metarLayer.clearLayers();
+    metarLayer.addData(j);
+  }).catch(e=>console.warn("METAR load failed:", url, e));
+}
+
+// --- Surface Wind Particles (NARR 10m daily mean) ---
+var surfaceWindLayer = null;
+var surfaceWindPlaceholder = L.layerGroup();
+function loadSurfaceWind(url){
+  if(!L.velocityLayer){ console.warn("leaflet-velocity missing; wind particles disabled"); return; }
+  return fetch(url).then(r=>r.json()).then(data=>{
+    if(surfaceWindLayer){ try{ map.removeLayer(surfaceWindLayer);}catch(e){} surfaceWindLayer=null; }
+    surfaceWindLayer = L.velocityLayer({
+      // if placeholder is currently on map, swap it out
+    
+      displayValues: false,
+      displayOptions: { velocityType: 'Wind', units: 'mph' },
+      data: data,
+      maxVelocity: 60,
+      velocityScale: 0.005
+    });
+    if(map.hasLayer(surfaceWindPlaceholder)){
+      map.removeLayer(surfaceWindPlaceholder);
+      surfaceWindLayer.addTo(map);
+    }
+  }).catch(e=>console.warn("Surface wind load failed:", url, e));
+}
+
+// --- Jetstream Particles (placeholder: vector layer if data is in velocity format) ---
+var jetstreamLayer = null;
+var jetstreamPlaceholder = L.layerGroup();
+function loadJetstream(url){
+  if(!L.velocityLayer){ console.warn("leaflet-velocity missing; jetstream disabled"); return; }
+  return fetch(url).then(r=>r.json()).then(data=>{
+    if(jetstreamLayer){ try{ map.removeLayer(jetstreamLayer);}catch(e){} jetstreamLayer=null; }
+    jetstreamLayer = L.velocityLayer({
+      displayValues: false,
+      displayOptions: { velocityType: 'Jet', units: 'kts' },
+      data: data,
+      maxVelocity: 200,
+      velocityScale: 0.01
+    });
+    if(map.hasLayer(jetstreamPlaceholder)){
+      map.removeLayer(jetstreamPlaceholder);
+      jetstreamLayer.addTo(map);
+    }
+  }).catch(e=>console.warn("Jetstream load failed:", url, e));
+}
+
 L.control.layers(baseLayers, overlays, { collapsed:false }).addTo(map);
 
   // Remove any base-layer radio section if Leaflet created it empty
@@ -1109,8 +1192,6 @@ L.control.layers(baseLayers, overlays, { collapsed:false }).addTo(map);
     updateEra5Global();
 
   }
-map.on("overlayadd", function(e){
-    enforceSingleOverlay(e.layer);
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
       era5Apr10Enabled = true;
@@ -1317,6 +1398,61 @@ function updateAlerts(){
   updateAll();
 
 })();
+
+
+// --- Simple Timeline (for now) ---
+var TIME_STEPS = [
+  { label: "APRIL 14, 2018 7AM", radar: "n0q_201804141200.png", metars: null },
+  { label: "APRIL 14, 2018 10AM", radar: "n0q_201804141500.png", metars: null },
+  { label: "APRIL 14, 2018 1PM", radar: "n0q_201804141800.png", metars: null },
+  { label: "APRIL 14, 2018 4PM", radar: "n0q_201804142100.png", metars: null },
+  { label: "APRIL 14, 2018 6PM", radar: "n0q_201804142300.png", metars: null }
+];
+var timeIndex = 0;
+
+// radar overlay assumed to be named radarOverlay if present; create if missing
+var radarOverlay = window.radarOverlay || null;
+function ensureRadarOverlay(){
+  if(!radarOverlay){
+    radarOverlay = L.imageOverlay(TIME_STEPS[timeIndex].radar, map.getBounds(), {opacity:0.85, interactive:false});
+    window.radarOverlay = radarOverlay;
+  }
+}
+function updateTime(){
+  var step = TIME_STEPS[timeIndex];
+  var el = document.getElementById("timeLabel") || document.querySelector(".time-label");
+  if(el) el.textContent = step.label;
+
+  // Update radar if overlay exists or if Composite Radar layer is selected
+  if(step.radar){
+    if(radarOverlay && map.hasLayer(radarOverlay)){
+      radarOverlay.setUrl(step.radar);
+    }
+  }
+}
+function stepBack(){ timeIndex = (timeIndex - 1 + TIME_STEPS.length) % TIME_STEPS.length; updateTime(); }
+function stepFwd(){ timeIndex = (timeIndex + 1) % TIME_STEPS.length; updateTime(); }
+
+// Wire buttons if present
+var backBtn = document.getElementById("bBackBtn");
+var fwdBtn = document.getElementById("bFwdBtn");
+if(backBtn) backBtn.addEventListener("click", stepBack);
+if(fwdBtn) fwdBtn.addEventListener("click", stepFwd);
+
+// Zoom buttons (if present)
+var zIn = document.getElementById("zoomInBtn");
+var zOut = document.getElementById("zoomOutBtn");
+if(zIn) zIn.addEventListener("click", ()=>map.zoomIn());
+if(zOut) zOut.addEventListener("click", ()=>map.zoomOut());
+
+updateTime();
+
+// Load particle datasets (you can change these paths to match your repo)
+loadSurfaceWind("narr_10m_wind_20180414_daily_mph.json");
+loadJetstream("jetstream/jetstream_250mb_20180414_18Z.json");
+
+// If user turns on the particle layers before data loads, swap placeholder group for real layers
+
 </script>
 </body>
 </html>

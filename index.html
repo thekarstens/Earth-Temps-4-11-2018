@@ -555,6 +555,26 @@ body.student-mode .bstatus { display:none !important; }
     letter-spacing: 0.2px;
   }
 
+
+    /* METAR badge styling */
+    .metar-icon { background: transparent; border: none; }
+    .metar-badge{
+      width:44px; height:44px;
+      border-radius:999px;
+      background: rgba(255,255,255,0.95);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      font-family: Arial, sans-serif;
+      line-height:1;
+      pointer-events:auto;
+    }
+    .metar-st{ font-size:9px; font-weight:700; color:#111; margin-top:2px; }
+    .metar-t{ font-size:18px; font-weight:800; color:#111; margin-top:1px; }
+    .metar-td{ font-size:9px; font-weight:700; color:#333; margin-bottom:2px; }
+
 </style>
 </head>
 
@@ -619,7 +639,7 @@ body.student-mode .bstatus { display:none !important; }
   <div id="status" class="bstatus" style="display:none;"></div>
 </div>
 
-<img id="brandLogo" src="./logo.png" alt="Weather Workshops" />
+<img id="brandLogo" src="storm_science_lab_logo.png" alt="Weather Workshops" />
 <script>
 (function(){
   // ---------- Config ----------
@@ -1509,8 +1529,13 @@ var overlays = {};
 
   // HRRR Temp GeoJSON (real layer group; Leaflet handles show/hide)
   var hrrrTempLayer = L.layerGroup();
+  // METAR observations (temperature + wind)
+  var metarLayer = L.layerGroup();
+
   overlays["HRRR Temp (2m)"] = hrrrTempLayer;
 
+
+  overlays["METAR Observations"] = metarLayer;
 
 // --- HRRR TEMP "blob map" styling helpers (Option 1) ---
 var hrrrTempGeo = null;
@@ -1740,6 +1765,8 @@ map.on("overlayadd", function(e){
     syncOpacitySliderToActive();
     applyActiveOpacity();
     updateLegend();
+    if (e.layer === metarLayer) { updateMetars(); }
+
 });
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
@@ -1887,13 +1914,151 @@ function updateAlerts(){
     });
   }
 
-  function updateAll(){
+  
+  // =========================
+  // METAR Observations (IEM ASOS)
+  // =========================
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
+  // Convert Date (UTC) -> yyyymmddHHMM string
+  function toISOZ(d){
+    return d.getUTCFullYear() + pad2(d.getUTCMonth()+1) + pad2(d.getUTCDate()) +
+           pad2(d.getUTCHours()) + pad2(d.getUTCMinutes());
+  }
+
+  function csvSplit(line){
+    // Simple CSV splitter that supports quoted fields
+    const out = [];
+    let cur = "", inQ = false;
+    for (let i=0;i<line.length;i++){
+      const ch = line[i];
+      if (ch === '"'){
+        if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ){
+        out.push(cur); cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  async function fetchAsosRows(z){
+    // Pull one timestamp worth of obs for all stations returned by the service.
+    const y=z.getUTCFullYear(), mo=pad2(z.getUTCMonth()+1), da=pad2(z.getUTCDate());
+    const hh=pad2(z.getUTCHours()), mm=pad2(z.getUTCMinutes());
+    const url =
+      "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?" +
+      "data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
+      "&tz=UTC&format=comma&latlon=yes&" +
+      `year1=${y}&month1=${mo}&day1=${da}&hour1=${hh}&minute1=${mm}&` +
+      `year2=${y}&month2=${mo}&day2=${da}&hour2=${hh}&minute2=${mm}`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("ASOS fetch failed: " + res.status);
+    const text = await res.text();
+
+    const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length);
+    if (lines.length < 2) return [];
+
+    const header = csvSplit(lines[0]).map(h => h.trim().toLowerCase());
+    const rows = [];
+    for (let i=1;i<lines.length;i++){
+      const cols = csvSplit(lines[i]);
+      const obj = {};
+      for (let j=0;j<header.length && j<cols.length;j++){
+        obj[header[j]] = cols[j];
+      }
+      rows.push(obj);
+    }
+    return rows;
+  }
+
+  function safeNum(v){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function metarHtml(o){
+    const st = (o.station || "").toUpperCase();
+    const t = safeNum(o.tmpf);
+    const td = safeNum(o.dwpf);
+    const spd = safeNum(o.sknt);
+    const dir = safeNum(o.drct);
+    const alt = safeNum(o.alti);
+    const metar = o.metar || "";
+    const tStr = (t===null) ? "--" : Math.round(t).toString();
+    const tdStr = (td===null) ? "--" : Math.round(td).toString();
+    const windStr = (dir===null || spd===null) ? "--" : `${Math.round(dir)}° @ ${Math.round(spd)}kt`;
+    const altStr = (alt===null) ? "--" : alt;
+    return `
+      <div class="metar-badge">
+        <div class="metar-st">${st}</div>
+        <div class="metar-t">${tStr}</div>
+        <div class="metar-td">Td ${tdStr}</div>
+      </div>`;
+  }
+
+  let metarLastMinuteKey = null;
+
+  async function updateMetars(){
+    if (!map.hasLayer(metarLayer)) return;
+
+    const minuteKey = toISOZ(curZ).slice(0,12); // yyyymmddHHMM (minute precision)
+    if (metarLastMinuteKey === minuteKey && metarLayer.getLayers().length) return;
+    metarLastMinuteKey = minuteKey;
+
+    metarLayer.clearLayers();
+
+    let rows = [];
+    try {
+      rows = await fetchAsosRows(curZ);
+    } catch (e){
+      console.warn("METAR error:", e);
+      return;
+    }
+
+    const b = map.getBounds();
+    const pad = 0.75;
+    const minLat = b.getSouth() - pad, maxLat = b.getNorth() + pad;
+    const minLon = b.getWest() - pad,  maxLon = b.getEast() + pad;
+
+    let count = 0;
+    for (const o of rows){
+      const lat = safeNum(o.lat);
+      const lon = safeNum(o.lon);
+      if (lat===null || lon===null) continue;
+      if (lat < minLat || lat > maxLat || lon < minLon || lon > maxLon) continue;
+
+      const marker = L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: "metar-icon",
+          html: metarHtml(o),
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        }),
+        interactive: true
+      });
+
+      const st = (o.station || "").toUpperCase();
+      const metarTxt = (o.metar || "").replace(/\s+/g, " ").trim();
+      marker.bindPopup(`<b>${st}</b><br>${metarTxt || "No METAR string"}`);
+      marker.addTo(metarLayer);
+
+      count++;
+      if (count > 300) break; // safety
+    }
+  }
+
+function updateAll(){
     setTimeLabel();
     updateRadar();
     updateGfsSnow();
     updateEra5Global();
     updateAlerts();
     updateProductLabel();
+    updateMetars();
   }
 
   // ---------- Time controls ----------

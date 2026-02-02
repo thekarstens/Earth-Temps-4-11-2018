@@ -1957,11 +1957,11 @@ function updateAlerts(){
     const hh2=pad2(z2.getUTCHours()), mm2=pad2(z2.getUTCMinutes());
 
     const url =
-      "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?" +
-      "data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
-    const url = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=" + encodeURIComponent(station) + "&data=tmpf&data=dwpf&data=sknt&data=gust&data=relh&data=mslp&data=alti&data=vsby&data=skyc1&data=skyl1&data=wxcodes" + "&year1=" + ymd.slice(0,4) + "&month1=" + ymd.slice(5,7) + "&day1=" + ymd.slice(8,10) + "&year2=" + ymd.slice(0,4) + "&month2=" + ymd.slice(5,7) + "&day2=" + ymd.slice(8,10) + "&tz=UTC&format=comma&latlon=yes&" + netQS + "&report_type=3&" + "direct=no&report_type=3";
-      `year1=${y1}&month1=${mo1}&day1=${da1}&hour1=${hh1}&minute1=${mm1}&` +
-      `year2=${y2}&month2=${mo2}&day2=${da2}&hour2=${hh2}&minute2=${mm2}`;
+      "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=" + encodeURIComponent(station) +
+      "&data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
+      `&year1=${y1}&month1=${mo1}&day1=${da1}&hour1=${hh1}&minute1=${mm1}` +
+      `&year2=${y2}&month2=${mo2}&day2=${da2}&hour2=${hh2}&minute2=${mm2}` +
+      "&tz=UTC&format=comma&latlon=yes&report_type=3&direct=no";
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("ASOS fetch failed: " + res.status);
     const text = await res.text();

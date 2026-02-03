@@ -1957,7 +1957,7 @@ function updateAlerts(){
     const hh2=pad2(z2.getUTCHours()), mm2=pad2(z2.getUTCMinutes());
 
     const url =
-      "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=" + encodeURIComponent(station) +
+      "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=_ALL" +
       "&data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
       `&year1=${y1}&month1=${mo1}&day1=${da1}&hour1=${hh1}&minute1=${mm1}` +
       `&year2=${y2}&month2=${mo2}&day2=${da2}&hour2=${hh2}&minute2=${mm2}` +

@@ -2,22 +2,66 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Apr 2018 Case Study – Radar + Alerts</title>
+<title>Apr 2018 Case Study – METAR + Wind Arrows + Daily Particles + Alerts</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- Local Leaflet in your repo -->
 <link rel="stylesheet" href="./leaflet.css"/>
 <script src="./leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
-<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
-<script>
-var storyStarted = false; // do not auto-open storyboard
-</script>
 
-<style>
-html, body { height:100%; margin:0; }
+<!-- Leaflet Velocity (WORKING CDN) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-velocity@2.1.4/dist/leaflet-velocity.css"/>
+<script src="https://unpkg.com/leaflet-velocity@2.1.4/dist/leaflet-velocity.js"></script>
+
+<style>html, body { height:100%; margin:0; }
   #map { height:100%; background:#fff; }
 
-  /* Top TV-style banner */
+  .panel{ top: 110px;
+
+    position:absolute; top:10px; left:10px; z-index:9999;
+    background:rgba(255,255,255,0.95);
+    border:1px solid #ccc; border-radius:12px;
+    padding:10px;
+    font:600 12px/1.2 Arial, sans-serif;
+    box-shadow: 0 2px 10px rgba(0,0,0,.10);
+    min-width: 330px;
+  }
+  .row{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .btn{
+    border:1px solid #333; background:#fff; border-radius:10px;
+    padding:6px 10px; cursor:pointer; font:700 12px Arial;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .mono{ font-family: ui-monospace, Menlo, Consolas, monospace; font-weight:800; }
+
+  .dot{
+    border-radius:50%;
+    border:2px solid #333;
+    display:flex;align-items:center;justify-content:center;
+    font:800 12px/1 Arial, sans-serif;color:#111;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    user-select:none;
+  }
+
+  .swatch {
+    display:inline-block;
+    width:12px; height:12px;
+    border:1px solid #333;
+    border-radius:2px;
+    vertical-align:middle;
+    margin-right:6px;
+  }
+
+  .tiny {
+    font:600 11px/1.2 Arial, sans-serif;
+    opacity:.78;
+  }
+
+/* Observed radar styling */
+.obs-radar { filter: brightness(1.22) contrast(1.08) saturate(1.05); mix-blend-mode: multiply; }
+
+/* ===== Imported master banner + city label styles from index (15) ===== */
+/* Top TV-style banner */
   .tvbanner{
     position:absolute; top:0; left:0; right:0;
     z-index:99999;
@@ -31,25 +75,7 @@ html, body { height:100%; margin:0; }
     pointer-events:none;
   }
 
-  .panel{
-    position:absolute; top:70px; left:10px; z-index:9999;
-    background:rgba(255,255,255,0.95);
-    border:1px solid #ccc; border-radius:14px;
-    padding:12px;
-    font:700 12px/1.2 Arial, sans-serif;
-    box-shadow: 0 2px 10px rgba(0,0,0,.10);
-    min-width: 340px;
-  }
-  .row{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-  .btn{
-    border:1px solid #333; background:#fff; border-radius:12px;
-    padding:6px 10px; cursor:pointer; font:800 12px Arial;
-  }
-  .btn:active{ transform: translateY(1px); }
-  .mono{ font-family: ui-monospace, Menlo, Consolas, monospace; font-weight:900; }
-  .tiny { font:700 11px/1.2 Arial, sans-serif; opacity:.78; }
-
-  /* Branding logo (bottom-right, small) */
+/* Branding logo (bottom-right, small) */
   #brandLogo{
     position:absolute;
     bottom:6px;
@@ -63,10 +89,12 @@ html, body { height:100%; margin:0; }
     pointer-events:none;
   }
 
-  /* Leaflet layer control nudge down below banner */
-  .leaflet-top.leaflet-right { top: 70px; }
+/* Leaflet layer control nudge down below banner */
+  :root{ --banner-offset: 70px; }
+.leaflet-top.leaflet-right{ top: var(--banner-offset); }
+.leaflet-top.leaflet-left{ top: var(--banner-offset); }
 
-  /* Simple town label style */
+/* Simple town label style */
   .town-label{
     background: rgba(255,255,255,0.75);
     border:1px solid rgba(0,0,0,0.25);
@@ -78,105 +106,61 @@ html, body { height:100%; margin:0; }
 
 /* --- Banner layout + controls --- */
 .tvbanner{height:76px;padding:10px 14px;pointer-events:auto;}
+
 .banner-inner{height:100%;display:flex;align-items:center;gap:16px;}
+
 .banner-title{font-size:34px;font-weight:900;letter-spacing:1px;white-space:nowrap;text-transform:uppercase;}
+
 .banner-controls{display:flex;align-items:center;gap:10px;margin-left:10px;}
+
 .bbtn{pointer-events:auto;border:1px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.25);color:#fff;
   padding:6px 10px;border-radius:10px;font-weight:800;cursor:pointer;line-height:1;}
-.bbtn:hover{background:rgba(0,0,0,0.4);}
-.btime{min-width:190px;text-align:center;font-weight:800;letter-spacing:.2px;}
-.bsep{width:1px;height:26px;background:rgba(255,255,255,0.25);margin:0 4px;}
 
-  .bzoom{font-weight:800;letter-spacing:.06em;color:#fff;opacity:.92;margin-right:8px}
+.bbtn:hover{background:rgba(0,0,0,0.4);}
+
+.btime{min-width:190px;text-align:center;font-weight:800;letter-spacing:.2px;}
+
 .banner-actions{margin-left:auto;display:flex;align-items:center;gap:10px;}
-.bstatus{margin-left:14px;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis;
-  font:800 12px/1 Arial, sans-serif;opacity:.9;}
+
 #brandLogo{
   position:absolute;right:18px;bottom:6px;width:210px;z-index:900;pointer-events:none;
   filter: drop-shadow(0 3px 10px rgba(0,0,0,.35));
 }
 
+/* --- layout tweaks --- */
+  .leaflet-top.leaflet-right{ margin-top: 90px; }
 
-  /* --- layout tweaks --- */
-  .leaflet-top.leaflet-right { margin-top: 90px; }   /* push layer toggles below banner */
-  #brandLogo { bottom: 26px; right: 26px; }          /* nudge logo down a bit */
-
-
-  /* --- Story panel (Google Sheet driven) --- */
-  #storyPanel{
-    position:absolute;
-    top:90px;
-    left:10px;
-    width:390px;
-    max-width:86vw;
-    max-height: calc(100vh - 90px);
-    overflow:auto;
-    z-index:100001;
-    background:rgba(255,255,255,0.97);
-    border:1px solid rgba(0,0,0,0.18);
-    border-radius:16px;
-    box-shadow: 0 10px 28px rgba(0,0,0,.18);
-    padding:12px 12px 10px 12px;
-    transform: translateX(-110%);
-    transition: transform 180ms ease;
-  }
-  #storyPanel.story-open{ transform: translateX(0); }
-  .story-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .story-title{ font:900 16px/1.15 Arial, sans-serif; letter-spacing:.2px; }
-  .story-close{
-    border:1px solid rgba(0,0,0,.25);
-    background:#fff;
-    border-radius:10px;
-    padding:4px 8px;
-    font-weight:900;
-    cursor:pointer;
-  }
-  .story-body{ margin-top:10px; font:700 13px/1.35 Arial, sans-serif; color:#111; }
-  .story-body p{ margin:0 0 10px 0; }
-  .story-media{ margin-top:10px; }
-  .story-media img{ width:100%; border-radius:12px; border:1px solid rgba(0,0,0,0.12); }
-  .story-media iframe{ width:100%; aspect-ratio: 16/9; border:0; border-radius:12px; }
-  .story-nav{ display:flex; justify-content:space-between; gap:10px; margin-top:10px; }
-  .story-nav .btn{ flex:1; }
-  #storyStep{ margin-top:8px; }
-  /* Small story "stations" */
-  .story-dot{
-    width:10px;height:10px;border-radius:50%;
-    background:rgba(30,136,229,0.95);
-    border:2px solid #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25);
-  }
-
-
-/* --- Student/Teacher mode --- */
-body.student-mode .leaflet-control-layers,
-body.student-mode .bstatus { display:none !important; }
+/* push layer toggles below banner */
+  #brandLogo{ bottom: 26px; right: 26px; }
 
 /* --- Banner: simple classroom layout --- */
 .tvbanner{height:auto; padding:10px 14px; pointer-events:auto;}
-.banner-inner{display:flex; align-items:center; gap:14px;}
-.banner-left{display:flex; align-items:center; gap:12px; min-width:340px;}
-.lesson-left{font:900 20px/1.05 Arial, sans-serif; letter-spacing:.6px; text-transform:uppercase; white-space:nowrap;}
-.bbtn-story{font:900 14px/1 Arial, sans-serif; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.10);}
-.bbtn-story:hover{background:rgba(255,255,255,0.18);}
-.banner-mid{display:flex; align-items:center; gap:10px;}
-.btime{min-width:230px; text-align:center; font:900 14px/1 Arial, sans-serif; letter-spacing:.3px;}
-.banner-right{margin-left:auto; display:flex; align-items:center; gap:10px;}
-.product-right{font:900 32px/1 Arial, sans-serif; letter-spacing:1px; text-transform:uppercase; padding-left:10px; border-left:1px solid rgba(255,255,255,0.25);}
-.legend-mini{display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.18);}
-.leg-mini-label{font:900 11px/1 Arial, sans-serif; opacity:.92; text-transform:uppercase; letter-spacing:.4px;}
-.leg-mini-bar{display:inline-block; width:110px; height:10px; border-radius:6px; background: linear-gradient(90deg, #2b83ba, #4ecdc4, #a8e6a3, #ffd166, #ef476f); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);}
-.opacity-wrap{display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.18);}
-.op-label{font:900 11px/1 Arial, sans-serif; opacity:.92; text-transform:uppercase; letter-spacing:.4px;}
-#radarOpacity{width:120px;}
-.bstatus{margin-top:6px; font:800 12px/1 Arial, sans-serif; opacity:.9; max-width:95vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
-/* Make story button obvious */
-#beginStoryBtn{border-color: rgba(255,255,255,0.45); flex:0 0 auto; margin-left:auto;}
-/* --- Driving question line (option 2 style) --- */
-.dq-sub{margin-top:4px;font:800 14px/1 Arial,sans-serif;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dq-label{font-weight:900;opacity:.95}
-.dq-text{font-weight:900;opacity:1}
+.banner-inner{display:flex; align-items:center; gap:14px;}
+
+.banner-left{display:flex; align-items:center; gap:12px; min-width:340px;}
+
+.bbtn-story{font:900 14px/1 Arial, sans-serif; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.10);}
+
+.bbtn-story:hover{background:rgba(255,255,255,0.18);}
+
+.banner-mid{display:flex; align-items:center; gap:10px;}
+
+.btime{min-width:230px; text-align:center; font:900 14px/1 Arial, sans-serif; letter-spacing:.3px;}
+
+.banner-right{margin-left:auto; display:flex; align-items:center; gap:10px;}
+
+.product-right{font:900 32px/1 Arial, sans-serif; letter-spacing:1px; text-transform:uppercase; padding-left:10px; border-left:1px solid rgba(255,255,255,0.25);}
+
+.leg-mini-label{font:900 11px/1 Arial, sans-serif; opacity:.92; text-transform:uppercase; letter-spacing:.4px;}
+
+.leg-mini-bar{display:inline-block; width:110px; height:10px; border-radius:6px; background: linear-gradient(90deg, #2b83ba, #4ecdc4, #a8e6a3, #ffd166, #ef476f); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);}
+
+.opacity-wrap{display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.18);}
+
+.op-label{font:900 11px/1 Arial, sans-serif; opacity:.92; text-transform:uppercase; letter-spacing:.4px;}
+
+#radarOpacity{width:120px;}
 
 /* --- Begin story: big + obvious (yellow) --- */
 .bbtn-story{
@@ -188,10 +172,12 @@ body.student-mode .bstatus { display:none !important; }
   border-radius:14px !important;
   letter-spacing:.8px !important;
 }
+
 .bbtn-story:hover{filter:brightness(0.96)}
 
 /* --- Product center --- */
 .banner-product{display:flex;align-items:center;justify-content:center;min-width:240px}
+
 .product-center{
   font:900 42px/1 Arial,sans-serif;
   letter-spacing:1px;
@@ -205,47 +191,21 @@ body.student-mode .bstatus { display:none !important; }
 
 /* --- Option-2 style driving question block --- */
 .banner-left{display:flex;flex-direction:column;gap:2px;min-width:420px;max-width:44vw}
-.lesson-left{font:900 24px/1 Arial,sans-serif;letter-spacing:.6px;text-transform:uppercase}
-.dq-sub{font:800 14px/1.2 Arial,sans-serif;letter-spacing:.2px;text-transform:none;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dq-label{font-weight:900;text-transform:uppercase;letter-spacing:.5px}
-.dq-text{font-weight:800}
 
-
-/* Stack Begin Story above time controls */
-.story-time-stack{display:flex;flex-direction:column;gap:8px;align-items:center;min-width:210px}
 .banner-mid-stack{gap:10px}
+
 /* Give the product a little breathing room */
 .banner-product{margin:0 6px}
 
-
 /* --- Banner alignment fix: pull legend/controls back up --- */
 .banner-inner{align-items:flex-start}
-.legend-mini{margin-top:0}
+
 .opacity-wrap{margin-top:0}
-.story-time-stack{margin-top:0}
-
-
-/* --- Right-side controls pinned upper-right --- */
-.right-controls{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  margin-left:auto;
-  margin-top:0;
-}
-
 
 /* --- Restore "like before" banner geometry --- */
 .banner-inner{position:relative; align-items:center !important;}
-.right-controls{
-  position:absolute;
-  top:10px;
-  right:14px;
-  margin-left:0 !important;
-  align-items:center;
-}
+
 .legend-mini, .opacity-wrap{margin-top:0 !important;}
-.story-time-stack{margin-top:0 !important;}
 
 /* Logo lower */
 #brandLogo{bottom:0px !important;}
@@ -258,6 +218,7 @@ body.student-mode .bstatus { display:none !important; }
   color:#fff;
   border-bottom:2px solid rgba(255,255,255,0.12);
 }
+
 .banner-topline{
   display:flex;
   align-items:center;
@@ -268,20 +229,13 @@ body.student-mode .bstatus { display:none !important; }
   text-transform:uppercase;
   letter-spacing:.7px;
 }
-.topline-center{
-  display:flex;
-  flex:1 1 auto;
-  min-width:0;
-  align-items:baseline;
-  gap:10px;
-  max-width:1200px;
-  width:100%;
-  justify-content:flex-start;
-  flex-wrap:wrap;
-}
+
 .top-lesson{font-weight:900;font-size:26px;white-space:nowrap}
+
 .top-sep{opacity:.65;font-weight:900}
+
 .top-question{font-weight:800;font-size:16px;letter-spacing:.2px;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;flex:1 1 100%;text-align:center}
+
 .top-q-label{font-weight:900;text-transform:uppercase;letter-spacing:.6px}
 
 .banner-bottomline{
@@ -290,24 +244,19 @@ body.student-mode .bstatus { display:none !important; }
   padding:6px 14px 10px 14px;
   font-family: Arial, sans-serif;
 }
-.bottomline-center{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  width:100%;
-  max-width:1200px;
-  justify-content:center;
-  flex-wrap:wrap;
-}
+
 /* Big product word, flexible */
 .banner-product{min-width:200px;display:flex;justify-content:center}
+
 .product-center{
   font:900 44px/1 Arial,sans-serif;
   letter-spacing:1px;
   text-transform:uppercase;
   white-space:nowrap;
 }
+
 .time-controls{display:flex;align-items:center;gap:10px}
+
 .btime{font:900 16px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase;white-space:nowrap}
 
 /* Begin button */
@@ -323,7 +272,9 @@ body.student-mode .bstatus { display:none !important; }
 
 /* Opacity group */
 .opacity-wrap{display:flex;align-items:center;gap:8px}
+
 .op-label{font:900 12px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase}
+
 #radarOpacity{width:180px}
 
 /* Map legend near logo */
@@ -339,8 +290,11 @@ body.student-mode .bstatus { display:none !important; }
   color:#fff;
   font-family: Arial, sans-serif;
 }
+
 .map-legend-row{display:flex;align-items:center;gap:10px}
+
 .leg-mini-label{font:900 12px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase;opacity:.95}
+
 .leg-mini-bar{
   width:140px;height:10px;border-radius:7px;
   background:linear-gradient(90deg,#2b83ba,#ffd166,#ef476f);
@@ -351,6 +305,7 @@ body.student-mode .bstatus { display:none !important; }
 
 /* --- Brand color stripes (from Weather Workshops logo) --- */
 .tvbanner{ position:absolute; }
+
 .tvbanner::before{
   content:"";
   position:absolute;
@@ -358,8 +313,8 @@ body.student-mode .bstatus { display:none !important; }
   height:4px;
   background:#2f4e94;
 }
-.tvbanner{position:absolute; top:0; left:0; right:0; z-index:99999; }
 
+.tvbanner{position:absolute; top:0; left:0; right:0; z-index:99999; }
 
 .banner-topline{
   display:flex;
@@ -372,6 +327,7 @@ body.student-mode .bstatus { display:none !important; }
   letter-spacing:.7px;
   position:relative;
 }
+
 .banner-topline .topline-center{
   flex:1;
   display:flex;
@@ -382,15 +338,14 @@ body.student-mode .bstatus { display:none !important; }
   flex-wrap:wrap;
   padding-right:190px; /* reserve space so button doesn't overlap text */
 }
+
 .banner-topline .bbtn-story{
   position:absolute;
   right:14px;
   top:10px;
 }
 
-
 .banner-bottomline{padding:6px 14px 12px 14px;}
-
 
 .map-legend{
   right:12px !important;
@@ -398,20 +353,19 @@ body.student-mode .bstatus { display:none !important; }
   padding:7px 9px !important;
   border-radius:12px !important;
 }
-.leg-mini-bar{width:120px !important;}
 
+.leg-mini-bar{width:120px !important;}
 
 #brandLogo{bottom:0px !important; right:14px !important;}
 
-
 /* Pin START button in top-right of the top banner line */
 .banner-topline{position:relative !important;}
+
 .banner-topline > .bbtn-story{
   position:absolute !important;
   right:14px !important;
   top:10px !important;
 }
-
 
 /* Orange divider line in the middle (between top line and controls line) */
 .banner-divider{
@@ -421,28 +375,20 @@ body.student-mode .bstatus { display:none !important; }
   opacity:0.95;
 }
 
-
 /* Nudge legend tighter into the corner */
 .map-legend{right:10px !important; bottom:62px !important;}
-
-
-/* Center lesson/question text */
-.topline-center{
-  justify-content:center !important;
-  text-align:center !important;
-}
 
 /* Force START button to upper-right corner */
 .banner-topline{
   position:relative !important;
 }
+
 .banner-topline .bbtn-story{
   position:absolute !important;
   right:16px !important;
   top:50% !important;
   transform:translateY(-50%) !important;
 }
-
 
 /* --- FINAL banner alignment fixes --- */
 
@@ -452,6 +398,7 @@ body.student-mode .bstatus { display:none !important; }
   align-items:center !important;
   justify-content:center !important;
 }
+
 .banner-topline .topline-center{
   margin:0 auto !important;
   text-align:center !important;
@@ -471,16 +418,18 @@ body.student-mode .bstatus { display:none !important; }
   display:flex !important;
   justify-content:center !important;
 }
+
 .banner-product{
   margin:0 auto !important;
 }
+
 .product-center{
   text-align:center !important;
 }
 
-
 /* --- Pin START button to upper-right (top line) --- */
 .banner-topline{position:relative !important;}
+
 .banner-topline #beginStoryBtn{
   position:absolute !important;
   right:16px !important;
@@ -494,22 +443,27 @@ body.student-mode .bstatus { display:none !important; }
   right:10px !important;
 }
 
-
 /* Slightly tighter banner height (small) */
 .banner-topline{padding-top:8px !important; padding-bottom:5px !important;}
-.banner-bottomline{padding-top:3px !important; padding-bottom:7px !important;}
 
+.banner-bottomline{padding-top:3px !important; padding-bottom:7px !important;}
 
 /* --- Slight banner shrink (top text + controls) --- */
 .top-lesson{font-size:22px !important;}
-.top-question{font-size:14px !important;}
-.product-center{font-size:38px !important;}
-.bbtn{padding:7px 10px !important; font-size:12px !important;}
-.bbtn-story{padding:10px 14px !important; font-size:13px !important;}
-#radarOpacity{width:160px !important;}
-.banner-topline{padding-top:7px !important; padding-bottom:4px !important;}
-.banner-bottomline{padding-top:2px !important; padding-bottom:6px !important;}
 
+.top-question{font-size:14px !important;}
+
+.product-center{font-size:38px !important;}
+
+.bbtn{padding:7px 10px !important; font-size:12px !important;}
+
+.bbtn-story{padding:10px 14px !important; font-size:13px !important;}
+
+#radarOpacity{width:160px !important;}
+
+.banner-topline{padding-top:7px !important; padding-bottom:4px !important;}
+
+.banner-bottomline{padding-top:2px !important; padding-bottom:6px !important;}
 
 /* --- Brand logo: smaller + lower --- */
 #brandLogo{
@@ -519,7 +473,6 @@ body.student-mode .bstatus { display:none !important; }
   right:10px !important;
   opacity:0.95 !important;
 }
-
 
 /* TV-style city labels */
 .leaflet-tooltip.tv-city-label{
@@ -531,60 +484,68 @@ body.student-mode .bstatus { display:none !important; }
   box-shadow:0 2px 10px rgba(0,0,0,0.25);
   font:800 12px/1 Arial,sans-serif;
 }
-.leaflet-tooltip-top.tv-city-label:before,
-.leaflet-tooltip-right.tv-city-label:before,
-.leaflet-tooltip-left.tv-city-label:before,
-.leaflet-tooltip-bottom.tv-city-label:before{
-  border:0;
+
+/* --- Banner bottom row: force single-line layout --- */
+.banner-bottomline{
+  flex-wrap: nowrap !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+#modeBtn{ flex: 0 0 auto; }
+.opacity-wrap{ flex: 0 1 240px; min-width: 180px; }
+.product-center{
+  flex: 1 1 auto;
+  min-width: 120px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.time-wrap{
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.btime{ white-space: nowrap; }
+.banner-zoom{ flex: 0 0 auto; }
+
+/* Tighten fonts a bit so everything fits under the yellow line */
+.product-center{ font-size: 46px !important; }
+.btime{ font-size: 22px !important; }
+
+/* Responsive: on narrower screens, shrink more but keep one line */
+@media (max-width: 1100px){
+  .product-center{ font-size: 38px !important; }
+  .btime{ font-size: 18px !important; }
+  .opacity-wrap{ flex-basis: 200px; min-width: 150px; }
+}
+@media (max-width: 900px){
+  .product-center{ font-size: 30px !important; }
+  .opacity-wrap{ display: none; } /* last resort: hide opacity slider on very small widths */
 }
 
 
-  /* Ensure popups/tooltips render above boundary lines pane */
-  .leaflet-tooltip-pane { z-index: 1200 !important; }
-  .leaflet-popup-pane   { z-index: 1300 !important; }
-
-  /* HRRR pixel-query popup styling (bigger, bolder for students) */
-  .hrrr-popup .leaflet-popup-content-wrapper{
-    border-radius: 14px;
-    border: 2px solid rgba(0,0,0,0.35);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-  }
-  .hrrr-popup .leaflet-popup-content{
-    margin: 12px 14px;
-    font: 900 18px/1.15 Arial, sans-serif;
-    letter-spacing: 0.2px;
-  }
+/* --- Mobile banner tightening --- */
+@media (max-width: 600px){
+  :root{ --banner-offset: 110px; }
+  .tvbanner{ padding:6px 10px; }
+  .banner-inner{ flex-wrap:wrap; gap:8px; }
+  .banner-title{ font-size:22px; }
+  .banner-product{ min-width:unset; }
+  .banner-left{ min-width:unset; max-width:100%; }
+  .banner-right{ width:100%; margin-left:0; justify-content:flex-end; }
+  .questionbar{ font-size:12px; }
+}
 
 </style>
 </head>
 
 <body>
-<div id="map"></div>
-<div id="mapLegend" class="map-legend" title="Radar reflectivity">
-  <div class="map-legend-row">
-    <span class="leg-mini-label">Light</span>
-    <span class="leg-mini-bar" aria-hidden="true"></span>
-    <span class="leg-mini-label">Heavy</span>
-  </div>
-</div>
-<div id="storyPanel" aria-label="Story panel">
-  <div class="story-head">
-    <div class="story-title" id="storyTitle">Story</div>
-    <button class="story-close" id="storyCloseBtn" title="Close">✕</button>
-  </div>
-  <div class="story-body" id="storyBody">
-    <p class="tiny">Loading story…</p>
-  </div>
-  <div class="story-nav">
-    <button class="btn" id="storyPrevBtn">Back</button>
-    <button class="btn" id="storyNextBtn">Next</button>
-  </div>
-  <div class="tiny" id="storyStep"></div>
-</div>
+
 <div id="banner" class="tvbanner">
   <div class="banner-topline" role="banner">
     <div class="topline-center">
-      <span class="top-lesson">Lesson 1: Driving Question</span>
+      <span class="top-lesson">Lesson: METAR Analysis</span>
       <span class="top-sep">—</span>
       <span class="top-question"><span class="top-q-label">Question:</span> How can we use real-time weather data to make safer decisions?</span>
     </div>
@@ -602,17 +563,17 @@ body.student-mode .bstatus { display:none !important; }
       </div>
 
       <div class="banner-product" aria-label="Product shown">
-        <div class="product-center" id="productLabel">RADAR</div>
+        <div class="product-center" id="productLabel">METARS</div>
       </div>
 
       <div class="time-controls" aria-label="Time controls">
-        <button class="bbtn" id="bBackBtn" title="Back 3 hours">◀</button>
+        <button class="bbtn" id="backBtnBanner" title="Back 3 hours">◀</button>
         <div class="btime" id="bannerTimeLabel">April 14, 2018 7AM</div>
-        <button class="bbtn" id="bFwdBtn" title="Forward 3 hours">▶</button>
+        <button class="bbtn" id="fwdBtnBanner" title="Forward 3 hours">▶</button>
       </div>
 
-      <button class="bbtn" id="zoomOutBtn" title="Zoom out">−</button>
-      <button class="bbtn" id="zoomInBtn" title="Zoom in">+</button>
+      <button class="bbtn" id="zoomOutBtnBanner" title="Zoom out">−</button>
+      <button class="bbtn" id="zoomInBtnBanner" title="Zoom in">+</button>
     </div>
   </div>
 
@@ -620,1310 +581,1047 @@ body.student-mode .bstatus { display:none !important; }
 </div>
 
 <img id="brandLogo" src="./logo.png" alt="Weather Workshops" />
+
+<div id="map"></div>
+
+<div class="panel">
+  <div style="font-size:13px;margin-bottom:6px">Apr 2018 Case Study</div>
+
+  <!-- Time controls for METAR + Alerts -->
+  <div class="row">
+    <button class="btn" id="backBtn">◀ Time</button>
+    <div class="mono" id="timeLabel">2018-04-14 15Z</div>
+    <button class="btn" id="fwdBtn">Time ▶</button>
+  </div>
+
+  <!-- Day controls for PARTICLES ONLY -->
+  <div class="row">
+    <span class="tiny">Particles day:</span>
+    <button class="btn" id="dayBackBtn">◀ Apr 13</button>
+    <div class="mono" id="dayLabel">Apr 14</div>
+    <button class="btn" id="dayFwdBtn">Apr 15 ▶</button>
+  </div>
+
+  <div class="row">
+    <span style="opacity:.75">Step:</span>
+    <span class="mono">3 hours</span>
+    <span style="opacity:.75;margin-left:auto">Zoom:</span>
+    <span class="mono" id="zoomLabel">6</span>
+  </div>
+
+  <div class="row">
+    <span class="tiny" id="status">Loading…</span>
+  </div>
+
+  <div class="tiny">
+    Wind arrows: direction wind is blowing <b>TO</b> (METAR direction + 180°).
+  </div>
+</div>
+
 <script>
-(function(){
-  // ---------- Config ----------
-  var STEP_HOURS = 3;
+/* ------------------------------------------------------------
+   1) Map
+------------------------------------------------------------ */
+const map = L.map("map", { zoomControl:true }).setView([44.2, -96.5], 6);
 
-  // Use the same starting time as your case study controls:
-  // Time window for the time controls (expanded to include earlier GFS forecast frames).
-  var startZ = new Date(Date.UTC(2018, 3, 10, 0, 0, 0));  // 2018-04-10 00Z (include day before for global temp)
-  var endZ   = new Date(Date.UTC(2018, 3, 15, 12, 0, 0)); // 2018-04-15 12Z (storm end window; extend later if needed) // 24h window; extend later if you want
-  var curZ = new Date(startZ.getTime());
+const osm = L.tileLayer(
+  "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+  { attribution: "© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom: 19 }
+).addTo(map);
 
-  // Composite radar geographic extent (NAD83 geographic). Shifted ~60mi south + ~15mi east for better fit.
-  // Base extent commonly used by IEM mosaics: lon -126..-66, lat 24..50
-  var SHIFT_LAT = -1.09; // south shift (~15mi extra)   // south
-  var SHIFT_LON = 0.49; // east shift (~15mi extra)   // east
-  var RADAR_BOUNDS = L.latLngBounds(
-    L.latLng(24 + SHIFT_LAT, -126 + SHIFT_LON),
-    L.latLng(50 + SHIFT_LAT,  -66 + SHIFT_LON)
-  );
+// Optional label tiles (Carto light labels)
+const labels = L.tileLayer(
+  "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
+  { attribution: "", subdomains:"abcd", maxZoom: 19, pane: "overlayPane" }
+).addTo(map);
 
-  // Local file pattern in your repo:
-  // radar_frames/n0q_201804141200.png, etc
-  function pad2(n){ return (n<10?'0':'') + n; }
-  function yyyymmdd(d){
-    return d.getUTCFullYear() + pad2(d.getUTCMonth()+1) + pad2(d.getUTCDate());
+// --- Extra Midwest city labels (shows more as you zoom in) ---
+const cityLabelLayer = L.layerGroup().addTo(map);
+
+function makeCityLabel(name, lat, lon){
+  return L.marker([lat, lon], {
+    interactive: false,
+    icon: L.divIcon({
+      className: "town-label",
+      html: name,
+      iconSize: null
+    })
+  });
+}
+
+const CITIES_TIER1 = [
+  ["Sioux Falls", 43.5446, -96.7311],
+  ["Minneapolis", 44.9778, -93.2650],
+  ["Des Moines", 41.5868, -93.6250],
+  ["Omaha", 41.2565, -95.9345],
+  ["Kansas City", 39.0997, -94.5786],
+  ["Rapid City", 44.0805, -103.2310],
+  ["Denver", 39.7392, -104.9903]
+];
+
+const CITIES_TIER2 = [
+  ["Fargo", 46.8772, -96.7898],
+  ["Bismarck", 46.8083, -100.7837],
+  ["Pierre", 44.3683, -100.3510],
+  ["Brookings", 44.3114, -96.7984],
+  ["Watertown", 44.8994, -97.1150],
+  ["Rochester", 44.0121, -92.4802],
+  ["Sioux City", 42.4990, -96.4003],
+  ["Lincoln", 40.8136, -96.7026],
+  ["St. Louis", 38.6270, -90.1994],
+  ["Madison", 43.0731, -89.4012],
+  ["Milwaukee", 43.0389, -87.9065],
+  ["Chicago", 41.8781, -87.6298]
+];
+
+function updateCityLabels(){
+  const z = map.getZoom();
+  
+  // --- Declutter strategy ---
+  // - Use our custom white-bubble labels at mid zooms
+  // - Switch to built-in map labels only when zoomed in far enough
+  if (z >= 9) {
+    if (!map.hasLayer(osmLabels)) osmLabels.addTo(map);
+    if (map.hasLayer(cityLabelLayer)) map.removeLayer(cityLabelLayer);
+  } else {
+    if (map.hasLayer(osmLabels)) map.removeLayer(osmLabels);
+    if (!map.hasLayer(cityLabelLayer)) cityLabelLayer.addTo(map);
   }
-  function hhmm(d){
-    return pad2(d.getUTCHours()) + pad2(d.getUTCMinutes());
-  }
-  function radarUrlFor(d){
-    return "radar_frames/n0q_" + yyyymmdd(d) + hhmm(d) + ".png";
-  }
 
-  // GFS snow forecast PNGs in repo (static frames)
-  // gfs_snow/gfs_20180411_00z_f96_snow_weatherbell.png
-  // gfs_snow/gfs_20180412_00z_f72_snow_weatherbell.png
-  // gfs_snow/gfs_20180413_00z_f48_snow_weatherbell.png
-  function gfsSnowUrlFor(d){
-    // Pick the most-relevant static forecast image for the current time.
-    // (We don't animate this yet; we just swap between a few key lead times.)
-    var t = d.getTime();
-    var t13 = Date.UTC(2018,3,13,0,0,0); // Apr 13 00Z
-    var t12 = Date.UTC(2018,3,12,0,0,0); // Apr 12 00Z
-    if (t >= t13) return "gfs_snow/gfs_20180413_00z_f48_snow_weatherbell.png";
-    if (t >= t12) return "gfs_snow/gfs_20180412_00z_f72_snow_weatherbell.png";
-    return "gfs_snow/gfs_20180411_00z_f96_snow_weatherbell.png";
-  }
+  cityLabelLayer.clearLayers();
 
-  // Alerts file pattern you already have:
-  // timeline_hourly/alerts_20180414_1500Z.geojson
-  function alertsUrlFor(d){
-    return "timeline_hourly/alerts_" + yyyymmdd(d) + "_" + pad2(d.getUTCHours()) + "00Z.geojson";
-  }
+  if (z < 6) { return; }
 
-  // "Central time" label (forced) — we just subtract 5 hours and show CST
-  // (Technically CDT for April, but your students don't need DST complexity here.)
-  function formatCentralLabel(dUtc) {
+  if (z >= 4){
+    CITIES_TIER1.forEach(c => cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])));
+  }
+  if (z >= 6){
+    CITIES_TIER2.forEach(c => cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])));
+  }
+}
+map.on("zoomend", updateCityLabels);
+updateCityLabels();
+
+// A few always-on towns (like before)
+function addTown(name, lat, lon){
+  L.marker([lat, lon], {
+    icon: L.divIcon({ className:"town-label", html: name, iconSize: null }),
+    interactive:false
+  }).addTo(cityLabelLayer);
+}
+addTown("Omaha", 41.2565, -95.9345);
+addTown("Des Moines", 41.5868, -93.6250);
+addTown("Minneapolis", 44.9778, -93.2650);
+addTown("Kansas City", 39.0997, -94.5786);
+addTown("St. Louis", 38.6270, -90.1994);
+map.attributionControl.setPrefix(false);
+
+const statusEl    = document.getElementById("status");
+const timeLabelEl = document.getElementById("timeLabel");
+const dayLabelEl  = document.getElementById("dayLabel");
+const zoomLabelEl = document.getElementById("zoomLabel");
+
+function setStatus(msg){ statusEl.textContent = msg; }
+
+map.on("zoomend", ()=>zoomLabelEl.textContent = String(map.getZoom()));
+zoomLabelEl.textContent = String(map.getZoom());
+
+/* ------------------------------------------------------------
+   2) Time controls (METAR + Alerts)
+------------------------------------------------------------ */
+let current = new Date(Date.UTC(2018, 3, 14, 15, 0, 0)); // default (will snap to timeline)
+const stepHours = 3;
+
+// Alerts timeline index (optional, but recommended)
+let ALERTS_TIMELINE = null; // array of {t, file, count}
+let ALERTS_MIN = null;
+let ALERTS_MAX = null;
+
+function parseISOZ(s){
+  // '2018-04-12T00:00:00Z' -> Date
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+async function loadAlertsTimelineIndex(){
+  try {
+    const r = await fetch('./timeline_index.json', { cache:'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const idx = await r.json();
+    if (!Array.isArray(idx) || !idx.length) throw new Error('empty index');
+    ALERTS_TIMELINE = idx
+      .map(x => ({...x, _d: parseISOZ(x.t)}))
+      .filter(x => x._d);
+    ALERTS_TIMELINE.sort((a,b)=>a._d-b._d);
+    ALERTS_MIN = ALERTS_TIMELINE[0]._d;
+    ALERTS_MAX = ALERTS_TIMELINE[ALERTS_TIMELINE.length-1]._d;
+  } catch(e){
+    // Not fatal: we'll fall back to the old per-hour filenames
+    console.warn('No timeline_index.json found or unreadable:', e.message);
+    ALERTS_TIMELINE = null;
+    ALERTS_MIN = null;
+    ALERTS_MAX = null;
+  }
+}
+
+function snapCurrentToAlertsTimeline(){
+  if (!ALERTS_TIMELINE || !ALERTS_TIMELINE.length) return null;
+  // clamp
+  if (current < ALERTS_MIN) current = new Date(ALERTS_MIN.getTime());
+  if (current > ALERTS_MAX) current = new Date(ALERTS_MAX.getTime());
+  // nearest
+  let best = ALERTS_TIMELINE[0];
+  let bestDt = Math.abs(current - best._d);
+  for (let i=1;i<ALERTS_TIMELINE.length;i++){
+    const it = ALERTS_TIMELINE[i];
+    const dt = Math.abs(current - it._d);
+    if (dt < bestDt){ best = it; bestDt = dt; }
+  }
+  // snap label/time to the actual frame time to avoid confusing 'out of range' times
+  current = new Date(best._d.getTime());
+  return best;
+}
+
+
+function fmtZ(d){
+  const Y = d.getUTCFullYear();
+  const M = String(d.getUTCMonth()+1).padStart(2,"0");
+  const D = String(d.getUTCDate()).padStart(2,"0");
+  const H = String(d.getUTCHours()).padStart(2,"0");
+  return `${Y}-${M}-${D} ${H}Z`;
+}
+function toISOZ(d){
+  const Y = d.getUTCFullYear();
+  const M = String(d.getUTCMonth()+1).padStart(2,"0");
+  const D = String(d.getUTCDate()).padStart(2,"0");
+  const H = String(d.getUTCHours()).padStart(2,"0");
+  return `${Y}-${M}-${D}T${H}:00:00Z`;
+}
+
+function formatCentralLabel(dUtc) {
   // Display in "Central time" without DST complexity for students.
   // April is technically CDT, but we keep a fixed -5 hour offset for clarity.
-  var central = new Date(dUtc.getTime() - 5*3600*1000); // UTC -> Central (approx)
-  var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var m = months[central.getUTCMonth()];
-  var day = central.getUTCDate();
-  var year = central.getUTCFullYear();
-  var hr = central.getUTCHours();
-  var ampm = hr >= 12 ? "PM" : "AM";
+  const central = new Date(dUtc.getTime() - 5*3600*1000); // UTC -> Central (approx)
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const m = months[central.getUTCMonth()];
+  const day = central.getUTCDate();
+  const year = central.getUTCFullYear();
+  let hr = central.getUTCHours();
+  const ampm = hr >= 12 ? "PM" : "AM";
   hr = hr % 12; if (hr === 0) hr = 12;
-  return m + " " + day + ", " + year + " " + hr + ampm;
+  return `${m} ${day}, ${year} ${hr}${ampm}`;
 }
 
-  // ---------- Map ----------
-  var map = L.map("map", { zoomControl:true }).setView([43.55, -96.73], 6);
-
-  // --- State boundaries / outlines (GeoJSON first; tile fallback) ---
-  map.createPane("lines");
-  map.getPane("lines").style.zIndex = 450;         // above dots, below popups         // above dots
-  map.getPane("lines").style.pointerEvents = "none"; // keep clicks working
-
-  var usStatesLayer = null;
-  var usStatesLoaded = false;
-
-  // Fallback: reliable reference tiles (works even if GeoJSON isn't present)
-  var stateLinesTile = L.tileLayer(
-    "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}",
-    { pane: "lines", opacity: 0.95 }
-  );
-
-  function loadUsStatesGeoJSONOnce(){
-    if (usStatesLoaded) return;
-    usStatesLoaded = true;
-
-    fetch("gz_2010_us_040_00_5m.json?v="+Date.now())
-      .then(function(res){
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(function(geojson){
-        usStatesLayer = L.geoJSON(geojson, {
-          pane: "lines",
-          style: function(){
-            return { color:"#000000", weight: 1.2, opacity: 0.95, fillOpacity: 0 };
-          }
-        });
-        // If user already has HRRR temp on, add immediately
-        if (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)) addStateLines();
-      })
-      .catch(function(err){
-        // If GeoJSON missing, we just rely on tile fallback
-        console.log("State GeoJSON not loaded (using tile fallback):", err);
-      });
-  }
-
-  function addStateLines(){
-    // Prefer GeoJSON outlines if available; otherwise tile fallback
-    if (usStatesLayer) {
-      if (!map.hasLayer(usStatesLayer)) usStatesLayer.addTo(map);
-      if (map.hasLayer(stateLinesTile)) map.removeLayer(stateLinesTile);
-    } else {
-      if (!map.hasLayer(stateLinesTile)) stateLinesTile.addTo(map);
-    }
-  }
-  function removeStateLines(){
-    if (usStatesLayer && map.hasLayer(usStatesLayer)) map.removeLayer(usStatesLayer);
-    if (map.hasLayer(stateLinesTile)) map.removeLayer(stateLinesTile);
-  }
-
-  // Kick off loading in the background (won't break anything if missing)
-  loadUsStatesGeoJSONOnce();
-  // Clean base map (no labels)
-  var base = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
-    { attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains:"abcd", maxZoom: 19 }
-  ).addTo(map);
-
-  
-  // --- Extra Midwest city labels (shows more as you zoom in) ---
-  var cityLabelLayer = L.layerGroup().addTo(map);
-
-  function makeCityLabel(name, lat, lon){
-    return L.marker([lat, lon], {
-      interactive: false,
-      icon: L.divIcon({
-        className: "town-label",
-        html: name,
-        iconSize: null
-      })
-    });
-  }
-
-  var CITIES_TIER1 = [
-    ["Sioux Falls", 43.5446, -96.7311],
-    ["Minneapolis", 44.9778, -93.2650],
-    ["Des Moines", 41.5868, -93.6250],
-    ["Omaha", 41.2565, -95.9345],
-    ["Kansas City", 39.0997, -94.5786],
-    ["Rapid City", 44.0805, -103.2310],
-    ["Denver", 39.7392, -104.9903]
-  ];
-
-  var CITIES_TIER2 = [
-    ["Fargo", 46.8772, -96.7898],
-    ["Bismarck", 46.8083, -100.7837],
-    ["Pierre", 44.3683, -100.3510],
-    ["Brookings", 44.3114, -96.7984],
-    ["Watertown", 44.8994, -97.1150],
-    ["Rochester", 44.0121, -92.4802],
-    ["Sioux City", 42.4990, -96.4003],
-    ["Lincoln", 40.8136, -96.7026],
-    ["St. Louis", 38.6270, -90.1994],
-    ["Madison", 43.0731, -89.4012],
-    ["Milwaukee", 43.0389, -87.9065],
-    ["Chicago", 41.8781, -87.6298]
-  ];
-
-  function updateCityLabels(){
-    var z = map.getZoom();
-    cityLabelLayer.clearLayers();
-
-    if (z >= 4){
-      CITIES_TIER1.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
-    }
-    if (z >= 6){
-      CITIES_TIER2.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
-    }
-  }
-  map.on("zoomend", updateCityLabels);
-  updateCityLabels();
-
-// Optional labels (kept on top to help students)
-  var labels = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
-    { attribution: "", subdomains:"abcd", maxZoom: 19, pane: "overlayPane" }
-  ).addTo(map);
-
-  // Town labels
-  function addTown(name, lat, lon){
-    L.marker([lat, lon], {
-      icon: L.divIcon({ className:"town-label", html: name, iconSize: null }),
-      interactive:false
-    }).addTo(map);
-  }
-addTown("Omaha", 41.2565, -95.9345);
-  addTown("Des Moines", 41.5868, -93.6250);
-  addTown("Minneapolis", 44.9778, -93.2650);
-  addTown("Kansas City", 39.0997, -94.5786);
-  addTown("St. Louis", 38.6270, -90.1994);
-
-
-  // ---------- Story (Google Sheet) ----------
-  var SHEET_ID = "17Hzg7R2fSHJGbOKAKMqG4QAqA1GlSJwFM-SQwPhQObY";
-  var SHEET_TAB = "April Blizzard Story";
-  var storyItems = [];
-  var storyMarkers = [];
-  var storyIndex = 0;
-  var focusRing = null;
-
-  var storyPanel = document.getElementById("storyPanel");
-  var storyTitleEl = document.getElementById("storyTitle");
-  var storyBodyEl  = document.getElementById("storyBody");
-  var storyStepEl  = document.getElementById("storyStep");
-
-  function storyOpen(){
-    if (!storyPanel) return; storyPanel.classList.add("story-open");
-    var legendPop = document.getElementById("legendPop");
-    if (legendPop) legendPop.classList.add("hidden");
-    setTimeout(function(){ map.invalidateSize(); }, 220);
-  }
-  function storyClose(){
-    if (!storyPanel) return; storyPanel.classList.remove("story-open");
-    setTimeout(function(){ map.invalidateSize(); }, 220);
-  }
-  function storyToggle(){
-    if (storyPanel.classList.contains("story-open")) storyClose();
-    else if (storyStarted) { storyOpen(); }
-  }
-
-  function safeLink(url){
-    if (!url) return "";
-    return String(url).trim();
-  }
-
-  function renderStory(i, panTo){
-    if (!storyItems.length) return;
-    if (i < 0) i = 0;
-    if (i >= storyItems.length) i = storyItems.length - 1;
-    storyIndex = i;
-
-    var item = storyItems[storyIndex];
-    storyTitleEl.textContent = item.title || "Storm Story";
-
-    var html = "";
-    if (item.text) {
-      // Convert newlines to paragraphs
-      var parts = String(item.text).split(/\n+/).filter(Boolean);
-      parts.forEach(function(p){ html += "<p>" + escapeHtml(p) + "</p>"; });
-    } else {
-      html += "<p class='tiny'>No text for this station yet.</p>";
-    }
-
-    var img = safeLink(item.image);
-    var vid = safeLink(item.video);
-
-    if (img) {
-      html += "<div class='story-media'><img src='" + img + "' alt='Story image'></div>";
-    }
-    if (vid) {
-      // Prefer embed links (youtube embed, vimeo embed, etc.)
-      html += "<div class='story-media'><iframe src='" + vid + "' allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture' allowfullscreen></iframe></div>";
-    }
-
-    storyBodyEl.innerHTML = html;
-    storyStepEl.textContent = "Station " + (storyIndex + 1) + " of " + storyItems.length;
-
-    // Highlight markers
-    storyMarkers.forEach(function(m, idx){
-      if (m && m.setStyle) {
-        m.setStyle({
-          radius: (idx===storyIndex? 12 : 8),
-          opacity: 1,
-          fillOpacity: (idx===storyIndex? 1 : 0.9),
-          weight: (idx===storyIndex? 3 : 2)
-        });
-        if (idx===storyIndex && m.bringToFront) m.bringToFront();
-      }
-    });
-
-    // Focus ring around the active station (helps guide attention)
-    if (typeof item.lat === "number" && typeof item.lon === "number") {
-      var ringRadiusM = 22000; // ~14 miles
-      if (!focusRing) {
-        focusRing = L.circle([item.lat, item.lon], {
-          radius: ringRadiusM,
-          color: "rgba(30,136,229,0.95)",
-          weight: 2,
-          opacity: 0.95,
-          fill: false,
-          dashArray: "6 6"
-        }).addTo(map);
-      } else {
-        focusRing.setLatLng([item.lat, item.lon]);
-        focusRing.setRadius(ringRadiusM);
-      }
-      if (focusRing.bringToFront) focusRing.bringToFront();
-    }
-
-    if (storyStarted) { storyOpen(); }
-
-    if (panTo && item.lat != null && item.lon != null) {
-      map.panTo([item.lat, item.lon], { animate:true });
-    }
-  }
-
-  function escapeHtml(s){
-    return String(s)
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#039;");
-  }
-
-  function buildStoryMarkers(){
-    // Remove existing
-    storyMarkers.forEach(function(m){ try{ map.removeLayer(m); }catch(e){} });
-    storyMarkers = [];
-
-    storyItems.forEach(function(item, idx){
-      if (typeof item.lat !== "number" || typeof item.lon !== "number") return;
-
-      var m = L.circleMarker([item.lat, item.lon], {
-        radius: 8,
-        color: "rgba(255,255,255,0.95)",
-        weight: 2,
-        fillColor: "rgba(30,136,229,0.95)",
-        fillOpacity: 0.9
-      }).addTo(map);
-
-      m.on("click", function(){
-        renderStory(idx, false);
-      });
-
-      // Short hover tooltip
-      if (item.title) {
-        m.bindTooltip(item.title, { direction:"top", offset:[0,-8], opacity:0.9 });
-      }
-
-      storyMarkers.push(m);
-    });
-
-    // Initial highlight
-    renderStory(0, false);
-  }
-
-  function loadStory(){
-    var url = "https://opensheet.elk.sh/" + SHEET_ID + "/" + encodeURIComponent(SHEET_TAB);
-    fetch(url).then(function(r){
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    }).then(function(rows){
-      // Normalize rows
-      storyItems = (rows || []).map(function(r){
-        var lat = parseFloat(r.lat);
-        var lon = parseFloat(r.lon);
-        return {
-          id: r.id,
-          title: r.title || "",
-          text: r.text || "",
-          lat: isFinite(lat) ? lat : null,
-          lon: isFinite(lon) ? lon : null,
-          image: r.image || "",
-          video: r.video || "",
-          order: parseFloat(r.order)
-        };
-      })
-      .filter(function(x){ return x.title || x.text || (x.lat!=null && x.lon!=null); })
-      .sort(function(a,b){
-        var ao = isFinite(a.order) ? a.order : 9999;
-        var bo = isFinite(b.order) ? b.order : 9999;
-        return ao - bo;
-      });
-
-      if (!storyItems.length) {
-        storyBodyEl.innerHTML = "<p class='tiny'>No rows found in your Google Sheet tab '" + SHEET_TAB + "'.</p>";
-        return;
-      }
-
-      buildStoryMarkers();
-      setStatus("Story: loaded " + storyItems.length + " stations");
-    }).catch(function(err){
-      storyBodyEl.innerHTML = "<p class='tiny'>Could not load story from Google Sheet. Check that the sheet is published, and the tab name is '" + SHEET_TAB + "'.</p>";
-      setStatus("Story load failed");
-    });
-  }
-
-  
-// Banner actions
-var beginStoryBtn = document.getElementById("beginStoryBtn");
-if (beginStoryBtn) beginStoryBtn.onclick = function(){ storyStarted = true;
-    renderStory(storyIndex, true); };
-// Student/Teacher mode (Student hides layer toggles + status)
-var modeBtn = document.getElementById("modeBtn");
-function setMode(mode){
-  if (mode === "teacher"){
-    document.body.classList.remove("student-mode");
-    if (modeBtn) modeBtn.textContent = "TEACHER";
-  } else {
-    document.body.classList.add("student-mode");
-    if (modeBtn) modeBtn.textContent = "STUDENT";
-  }
+function updateTimeLabel(){
+  timeLabelEl.textContent = fmtZ(current);
+  const bt = document.getElementById("bannerTimeLabel");
+  if (bt) bt.textContent = formatCentralLabel(current);
 }
-if (modeBtn){
-  modeBtn.onclick = function(){
-    var isStudent = document.body.classList.contains("student-mode");
-    setMode(isStudent ? "teacher" : "student");
-  };
-}
-// default to STUDENT mode
-setMode("student");
-
-// Opacity slider (applies to the currently visible product)
-var radarOpacity = document.getElementById("radarOpacity");
-
-// Remember per-layer opacity so kids can flip products without losing their setting
-var productOpacity = { radar: 0.70, snow: 0.70, temp: 0.70, global: 0.70 };
-
-function getActiveProductKey(){
-  // Priority: global > snow > temp > radar (matches your product label logic)
-  if (typeof era5Apr10Enabled !== "undefined" && (era5Apr10Enabled || era5Apr11Enabled)) return "global";
-  if (typeof gfsSnowEnabled !== "undefined" && gfsSnowEnabled) return "snow";
-  if (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)) return "temp";
-  return "radar";
-}
-
-function setTempOpacity(op){
-  if (!hrrrTempGeo) return;
-  // base halo is softer, core is stronger
-  var baseOp = Math.max(0.10, Math.min(0.85, op * 0.55));
-  var coreOp = Math.max(0.20, Math.min(1.00, op));
-
-  hrrrTempGeo.eachLayer(function(layerOrGroup){
-    if (layerOrGroup && layerOrGroup.eachLayer){
-      layerOrGroup.eachLayer(function(l){
-        if (!l || !l.setStyle) return;
-        var role = (l.options && l.options._role) ? l.options._role : "core";
-        l.setStyle({ fillOpacity: (role === "base") ? baseOp : coreOp });
-      });
-    }
-  });
-}
-
-function applyActiveOpacity(){
-  if (!radarOpacity) return;
-  var v = parseInt(radarOpacity.value || "70", 10);
-  var op = Math.max(0.2, Math.min(1, v/100));
-
-  var key = getActiveProductKey();
-  productOpacity[key] = op;
-
-  if (key === "radar"){
-    if (obsRadarOverlay && obsRadarEnabled) obsRadarOverlay.setOpacity(op);
-  } else if (key === "snow"){
-    if (gfsSnowOverlay && gfsSnowEnabled) gfsSnowOverlay.setOpacity(op);
-  } else if (key === "temp"){
-    setTempOpacity(op);
-  } else if (key === "global"){
-    ensureEra5Overlays();
-    if (era5Apr10Overlay) era5Apr10Overlay.setOpacity(op);
-    if (era5Apr11Overlay) era5Apr11Overlay.setOpacity(op);
-  }
-}
-
-function syncOpacitySliderToActive(){
-  if (!radarOpacity) return;
-  var key = getActiveProductKey();
-  radarOpacity.value = Math.round((productOpacity[key] || 0.7) * 100);
-}
-
-// Wire slider
-if (radarOpacity){
-  radarOpacity.oninput = applyActiveOpacity;
-}
-
-
-  // Story UI buttons
-
-  
-  var storyCloseBtn = document.getElementById("storyCloseBtn");
-  if (storyCloseBtn) storyCloseBtn.onclick = storyClose;
-
-  var prevBtn = document.getElementById("storyPrevBtn");
-  var nextBtn = document.getElementById("storyNextBtn");
-  if (prevBtn) prevBtn.onclick = function(){ renderStory(storyIndex - 1, true); };
-  if (nextBtn) nextBtn.onclick = function(){ renderStory(storyIndex + 1, true); };
-
-  // Load story now
-  loadStory();
-
-
-  map.on("zoomend", function(){
-    var zl = document.getElementById("zoomLabel"); if (zl) zl.textContent = map.getZoom();
-  });
-
-  // Keep HRRR temp blobs sized appropriately as you zoom
-  map.on("zoomend", updateHrrrTempRadius);
-
-
-  map.on("click", function(e){
-    var lp = document.getElementById("legendPop");
-    if (lp) lp.classList.add("hidden");
-
-    // Pixel query (click) for HRRR temp: show nearest grid point value
-    if (!map.hasLayer(hrrrTempLayer)) return;
-    if (!hrrrPoints || hrrrPoints.length === 0) return;
-
-    var lat = e.latlng.lat, lon = e.latlng.lng;
-    var best = null, bestD = Infinity;
-    var coslat = Math.cos(lat * Math.PI/180);
-
-    for (var i=0; i<hrrrPoints.length; i++){
-      var p = hrrrPoints[i];
-      var dlat = (p.lat - lat);
-      var dlon = (p.lon - lon) * coslat;
-      var d2 = dlat*dlat + dlon*dlon;
-      if (d2 < bestD){ bestD = d2; best = p; }
-    }
-    if (!best) return;
-
-    var val = Math.round(best.tF); // whole degrees
-    L.popup({
-      className: "hrrr-popup",
-      autoPan: false,
-      closeButton: false,
-      pane: "popupPane",
-      offset: [0, -10]
-    })
-    .setLatLng([best.lat, best.lon])
-    .setContent(val + "°F")
-    .openOn(map);
-  });
-
-  // ---------- Layers ----------
-  var obsRadarOverlay = null;
-  var obsRadarEnabled = true;
-
-  // GFS Snow Forecast overlay (static PNG swapper)
-  var gfsSnowOverlay = null;
-  var gfsSnowEnabled = false;
-
-  // ERA5 Global Temperature PNG overlays (two-frame toggle)
-  var era5Apr10Overlay = null;
-  var era5Apr11Overlay = null;
-  var era5Apr10Enabled = false;
-  var era5Apr11Enabled = false;
-
-  
-  
-  // Fronts + highs/lows overlay (GeoJSON you upload)
-  // Expected file in repo root: fronts.geojson
-  var frontsEnabled = false;
-  var frontsLayer = null;
-  var frontsLoaded = false;
-
-  // Front symbol decorators (triangles/semicircles)
-  var frontsDecorGroup = null;
-
-  function clearFrontDecorators(){
-    if (frontsDecorGroup){
-      try { map.removeLayer(frontsDecorGroup); } catch(e){}
-      frontsDecorGroup = null;
-    }
-  }
-
-  function buildFrontDecorators(_retry){
-
-    _retry = _retry || 0;
-    // If the PolylineDecorator plugin is still loading, retry a few times.
-    if (!L || typeof L.polylineDecorator !== "function") {
-      if (_retry < 15) {
-        if (_retry === 0) console.warn("leaflet-polylinedecorator not ready yet; retrying…");
-        setTimeout(function(){ buildFrontDecorators(_retry + 1); }, 200);
-        return;
-      }
-      console.warn("leaflet-polylinedecorator did not load: triangles/semicircles disabled.");
-      return;
-    }
-    // Requires leaflet-polylinedecorator
-    if (typeof L === "undefined" || !L.polylineDecorator || !frontsLayer) return;
-
-    clearFrontDecorators();
-
-    var coldLines = [];
-    var warmLines = [];
-
-    frontsLayer.eachLayer(function(layer){
-      if (!layer || !layer.feature || !layer.feature.properties) return;
-      // Only decorate polylines
-      if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
-      var p = layer.feature.properties;
-      var fr = String(p.front || p.FRONT || p.kind || "").toLowerCase();
-      if (fr === "cold") coldLines.push(layer);
-      if (fr === "warm") warmLines.push(layer);
-    });
-
-    var patterns = [];
-
-    if (coldLines.length){
-      // Blue triangles (cold front) — base anchored to the line.
-      // We keep the triangle upright in SVG, then rotate relative to the polyline using angleCorrection.
-      var coldIcon = L.divIcon({
-        className: "",
-        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                 <polygon points="8,1 15,15 1,15" fill="#1e88e5"/>
-               </svg>`,
-        iconSize: [16,16],
-        // Put the *base* on the line (slightly below the icon box).
-        iconAnchor: [8,16]
-      });
-
-      patterns.push(L.polylineDecorator(coldLines, {
-        patterns: [{
-          offset: 8,
-          repeat: 34,
-          symbol: L.Symbol.marker({
-            rotate: true,
-            angleCorrection: -90,   // 90° LEFT relative to line direction
-            markerOptions: { icon: coldIcon }
-          })
-        }]
-      }));
-    }
-
-    if (warmLines.length){
-      // Red semicircles (warm front) — flat side anchored to the line.
-      // SVG is a half-disk with the flat edge on the bottom; we rotate relative to the polyline.
-      var warmIcon = L.divIcon({
-        className: "",
-        html: `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                 <path d="M1 15 A7 7 0 0 1 15 15 Z" fill="#e53935"/>
-               </svg>`,
-        iconSize: [16,16],
-        // Flat edge sits on the line.
-        iconAnchor: [8,16]
-      });
-
-      patterns.push(L.polylineDecorator(warmLines, {
-        patterns: [{
-          offset: 8,
-          repeat: 34,
-          symbol: L.Symbol.marker({
-            rotate: true,
-            // Flip warm-front symbols to the *other* side of the line.
-            // PolylineDecorator orients symbols based on line direction; shifting by 180° moves
-            // the bumps to the opposite side while keeping the flat edge anchored on the line.
-            angleCorrection: -90,   // 90° right + 180° = 270° (same as -90)
-            markerOptions: { icon: warmIcon }
-          })
-        }]
-      }));
-    }
-
-    if (!patterns.length) return;
-
-    frontsDecorGroup = L.layerGroup(patterns);
-    if (frontsEnabled){ frontsDecorGroup.addTo(map); }
-  }
-
-
-  function frontsLineStyle(feature){
-    var p = (feature && feature.properties) ? feature.properties : {};
-    var ftype = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
-
-    var color = "#111";
-    if (ftype.includes("cold")) color = "#1e88e5";
-    else if (ftype.includes("warm")) color = "#e53935";
-    else if (ftype.includes("occluded")) color = "#8e24aa";
-    else if (ftype.includes("stationary")) color = "#43a047";
-
-    var w = parseFloat(p.width);
-    if (!isFinite(w)) w = 3;
-
-    return { color: color, weight: w, opacity: 0.95 };
-  }
-
-  function makeHLIcon(letter){
-    var isH = String(letter).toUpperCase() === "H";
-    var fg = isH ? "#1e88e5" : "#e53935";
-
-    var svg = `
-      <svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="rgba(0,0,0,0.25)"/>
-        </filter>
-        <circle cx="26" cy="26" r="22" fill="rgba(255,255,255,0.92)" stroke="rgba(0,0,0,0.30)" stroke-width="2" filter="url(#shadow)"/>
-        <text x="26" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="900" fill="${fg}">${isH ? "H" : "L"}</text>
-      </svg>`;
-
-    return L.divIcon({
-      className: "",
-      html: svg,
-      iconSize: [52, 52],
-      iconAnchor: [26, 26]
-    });
-  }
-
-
-  function frontsPointToLayer(feature, latlng){
-    var p = (feature && feature.properties) ? feature.properties : {};
-    var sym = String(p.symbol || p.SYMBOL || p.pressure || p.PRESSURE || "").toUpperCase();
-    // Accept either symbol=H/L or pressure=High/Low
-    var letter = "H";
-    if (sym.includes("LOW") || sym === "L") letter = "L";
-    if (sym.includes("HIGH") || sym === "H") letter = "H";
-
-    return L.marker(latlng, { icon: makeHLIcon(letter), pane: "lines" });
-  }
-
-  function frontsOnEach(feature, layer){
-    var p = (feature && feature.properties) ? feature.properties : {};
-    // Light tooltip for teachers/students
-    var txt = "";
-    if (feature.geometry && feature.geometry.type === "Point"){
-      var sym = (p.symbol || p.pressure || "").toString();
-      var val = (p.value || p.press || p.pressure_mb || p.pressure_hpa || "").toString();
-      txt = (sym ? sym : "Pressure") + (val ? (" " + val) : "");
-    } else {
-      var fr = (p.front || p.type || "").toString();
-      txt = fr ? (fr.charAt(0).toUpperCase() + fr.slice(1) + " front") : "Front";
-    }
-    if (txt && layer && layer.bindTooltip){
-      layer.bindTooltip(txt, { direction:"top", opacity:0.9, sticky:true });
-    }
-  }
-
-  function ensureFronts(){
-    if (frontsLayer || frontsLoaded) return;
-    frontsLoaded = true;
-
-    fetch("fronts.geojson?v=" + Date.now())
-      .then(function(res){
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(function(geo){
-        frontsLayer = L.geoJSON(geo, {
-          pane: "lines",
-          style: frontsLineStyle,
-          pointToLayer: frontsPointToLayer,
-          onEachFeature: frontsOnEach
-        });
-        if (frontsEnabled){ frontsLayer.addTo(map); }
-        buildFrontDecorators();
-      })
-      .catch(function(err){
-        console.warn("Fronts GeoJSON not loaded (expected fronts.geojson in repo root).", err);
-        frontsLayer = null;
-      });
-  }
-
-  function updateFronts(){
-    ensureFronts();
-    if (!frontsLayer) return;
-
-    if (frontsEnabled){
-      if (!map.hasLayer(frontsLayer)) frontsLayer.addTo(map);
-      if (frontsDecorGroup && !map.hasLayer(frontsDecorGroup)) frontsDecorGroup.addTo(map);
-    } else {
-      if (map.hasLayer(frontsLayer)) map.removeLayer(frontsLayer);
-      if (frontsDecorGroup && map.hasLayer(frontsDecorGroup)) map.removeLayer(frontsDecorGroup);
-    }
-  }
-
-// NOTE: Leaflet basemaps (OSM/Carto) are Web Mercator (EPSG:3857).
-// If your ERA5 PNG was rendered in plain lat/lon (Plate Carree), it will look distorted.
-// Use the Colab exporter to "warp to Mercator" and then these bounds will line up.
-var WORLD_BOUNDS = L.latLngBounds(
-  L.latLng(-85.05112878, -180),
-  L.latLng( 85.05112878,  180)
-);
-function ensureEra5Overlays(){
-    if (!era5Apr10Overlay){
-      era5Apr10Overlay = L.imageOverlay(
-        "global/era5_t2m_global_2018-04-10_21Z_F_mercator_overlay.png",
-        WORLD_BOUNDS,
-        { opacity: productOpacity.global || 0.70, interactive:false }
-      );
-    }
-    if (!era5Apr11Overlay){
-      era5Apr11Overlay = L.imageOverlay(
-        "global/era5_t2m_global_2018-04-11_21Z_F_mercator_overlay.png",
-        WORLD_BOUNDS,
-        { opacity: productOpacity.global || 0.70, interactive:false }
-      );
-    }
-  }
-
-  function updateEra5Global(){
-    ensureEra5Overlays();
-
-    if (era5Apr10Enabled){
-      if (!map.hasLayer(era5Apr10Overlay)) era5Apr10Overlay.addTo(map);
-    } else {
-      if (era5Apr10Overlay && map.hasLayer(era5Apr10Overlay)) map.removeLayer(era5Apr10Overlay);
-    }
-
-    if (era5Apr11Enabled){
-      if (!map.hasLayer(era5Apr11Overlay)) era5Apr11Overlay.addTo(map);
-    } else {
-      if (era5Apr11Overlay && map.hasLayer(era5Apr11Overlay)) map.removeLayer(era5Apr11Overlay);
-    }
-  }
-
-  function setCurZToEra5(which){
-    // Sync the banner time controls to the static global images (21Z ~ 4PM Central)
-    if (which === "apr10") curZ = new Date(Date.UTC(2018, 3, 10, 21, 0, 0));
-    if (which === "apr11") curZ = new Date(Date.UTC(2018, 3, 11, 21, 0, 0));
-    clampTime();
-    setTimeLabel();
-  }
-
-  var alertsLayer = L.geoJSON(null, {
-    filter: function(f){
-      const p = (f && f.properties) ? f.properties : {};
-      const ev = String(p.event || p.EVENT || p.headline || p.HEADLINE || "").toLowerCase();
-      const phe = String(p.phenomena || p.PHENOM || p.phenom || "").toLowerCase();
-      const sig = String(p.significance || p.SIG || p.sig || "").toLowerCase();
-
-      // If we have human-readable event text, keep WARNINGS only
-      if (ev){
-        if (ev.includes("statement") || ev.includes("advisory") || ev.includes("watch")) return false;
-        return ev.includes("warning");
-      }
-
-      // If data uses NWS-style codes, keep significance=W (warning)
-      // Examples: phe=sv,to,ff,fl with sig=w
-      if (sig === "w") return true;
-
-      return false;
-    },
-
-    
-    style: function(f){
-      var p = (f && f.properties) ? f.properties : {};
-      var ev = String(p.event || p.EVENT || p.headline || p.phenomena || "").toLowerCase();
-      var phe = String(p.phenomena || p.PHENOM || "").toLowerCase();
-      var sig = String(p.significance || p.SIG || "").toLowerCase();
-
-      // Prefer explicit event text if present
-      var key = ev || (phe && sig ? (phe + "." + sig) : phe || "");
-
-      var stroke = "#333";
-      var fill = "#333";
-
-      var has = function(s){ return key.indexOf(s) !== -1; };
-
-      // Core colors requested
-      if (has("tornado") || phe==="to") { stroke = fill = "#e53935"; }          // red
-      else if (has("severe thunderstorm") || phe==="sv") { stroke = fill = "#fdd835"; } // yellow
-      else if (has("flash flood") || phe==="ff") { stroke = fill = "#00c853"; } // green
-      else if (has("flood") || phe==="fl") { stroke = fill = "#00c853"; }       // green
-      else { stroke = fill = "#42a5f5"; } // fallback blue
-
-      return { color: stroke, weight: 2, opacity: 0.95, fillColor: fill, fillOpacity: 0.22 };
-    },
-    onEachFeature: function(f, layer){
-      var props = f.properties || {};
-      var title = props.event || props.EVENT || props.headline || props.HEADLINE || props.prod_type || props.phenomena || "Warning";
-      layer.bindPopup("<b>" + String(title) + "</b>");
-    }
-  });
-  alertsLayer.addTo(map);
-  var alertsEnabled = true;
-
-  // Layer control (NO extra base layer picker)
-  // State boundary outline handled via GeoJSON (no labels)
-var overlays = {};
-  overlays["Composite Radar (Observed)"] = L.layerGroup(); // placeholder group
-
-  overlays["GFS Snow Forecast"] = L.layerGroup(); // checkbox only; overlay managed manually
-
-  overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
-  overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
-
-  overlays["Fronts (Surface Analysis)"] = L.layerGroup(); // checkbox only; loads fronts.geojson
-
-
-
-
-  // HRRR Temp GeoJSON (real layer group; Leaflet handles show/hide)
-  var hrrrTempLayer = L.layerGroup();
-  overlays["HRRR Temp (2m)"] = hrrrTempLayer;
-
-
-// --- HRRR TEMP "blob map" styling helpers (Option 1) ---
-var hrrrTempGeo = null;
-var hrrrPoints = []; // [{lat, lon, tF}] for pixel query
-var hrrrCanvas = L.canvas({ padding: 0.5 });
-
-function lerp(a,b,t){ return a + (b-a)*t; }
-function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
-
-// Smooth color ramp for temperature (F)
-function hexToRgb(hex){
-  hex = hex.replace("#","");
-  if (hex.length===3){ hex = hex.split("").map(c=>c+c).join(""); }
-  var n = parseInt(hex,16);
-  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
-}
-function rgbToCss(c){ return "rgb(" + c.r + "," + c.g + "," + c.b + ")"; }
-function mix(c1,c2,t){
-  return { r: Math.round(lerp(c1.r,c2.r,t)), g: Math.round(lerp(c1.g,c2.g,t)), b: Math.round(lerp(c1.b,c2.b,t)) };
-}
-
-// Smooth, WeatherBell-style temperature ramp (°F)
-// Anchors: 20s deep blue -> 30s lighter blue -> 40s dark green -> 50s light green -> 60s yellow -> 70s orange -> 80s red -> 90s magenta
-var TEMP_STOPS = [
-  // WeatherBell-ish temperature ramp (°F): purples -> blues -> cyans -> greens -> yellows -> oranges -> reds -> pinks
-  {t:-30, c:"#3b0a5e"},
-  {t:-20, c:"#54278f"},
-  {t:-10, c:"#1f3f9a"},
-  {t:  0, c:"#08519c"},
-  {t: 10, c:"#3182bd"},
-  {t: 20, c:"#6baed6"},
-  {t: 30, c:"#41b6c4"},
-  {t: 40, c:"#1a9850"},
-  {t: 50, c:"#66bd63"},
-  {t: 60, c:"#d9ef8b"},
-  {t: 70, c:"#fee08b"},
-  {t: 80, c:"#fdae61"},
-  {t: 90, c:"#f46d43"},
-  {t:100, c:"#d73027"},
-  {t:110, c:"#c51b8a"},
-  {t:120, c:"#7a0177"}
-].map(s => ({ t:s.t, c: hexToRgb(s.c) }));
-
-
-
-function tempColor(tF){
-  if (!isFinite(tF)) return "rgba(0,0,0,0)";
-  // Clamp into range
-  tF = clamp(tF, TEMP_STOPS[0].t, TEMP_STOPS[TEMP_STOPS.length-1].t);
-  // Find bracketing stops
-  for (var i=0; i<TEMP_STOPS.length-1; i++){
-    var a = TEMP_STOPS[i], b = TEMP_STOPS[i+1];
-    if (tF >= a.t && tF <= b.t){
-      var tt = (tF - a.t) / (b.t - a.t);
-      // Slight gamma curve to boost contrast around gradients
-      tt = Math.pow(tt, 0.70);
-      return rgbToCss(mix(a.c, b.c, tt));
-    }
-  }
-  return rgbToCss(TEMP_STOPS[TEMP_STOPS.length-1].c);
-}
-
-function radiusForZoom(z){
-  // Bigger dots as you zoom in (kids can “see the field” without tiny gaps).
-  // Tuned for ~3 km HRRR spacing: overlap at mid-zooms, and get BIG at local zooms.
-  if (z <= 4)  return 22;
-  if (z <= 5)  return 26;
-  if (z <= 6)  return 30;
-  if (z <= 7)  return 34;
-  if (z <= 8)  return 40;
-  if (z <= 9)  return 48;
-  if (z <= 10) return 58;
-  if (z <= 11) return 70;
-  return 82; // z>=12
-}
-
-function updateHrrrTempRadius(){
-  if (!hrrrTempGeo) return;
-
-  var z = map.getZoom();
-  var r = radiusForZoom(z);
-
-  hrrrTempGeo.eachLayer(function(layerOrGroup){
-    // Each feature returns a LayerGroup [base, core]
-    if (layerOrGroup && layerOrGroup.eachLayer){
-      layerOrGroup.eachLayer(function(l){
-        if (!l || !l.setRadius) return;
-        var role = (l.options && l.options._role) ? l.options._role : "base";
-        l.setRadius(role === "base" ? r : Math.max(2, Math.round(r * 0.22)));
-      });
-    } else if (layerOrGroup && layerOrGroup.setRadius){
-      layerOrGroup.setRadius(r);
-    }
-  });
-}
-  // Load once (GeoJSON must be in same folder as this index.html)
-  fetch("./hrrr_t2m_20180414_12z_f00.geojson")
-    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function(gj){
-      hrrrTempGeo = L.geoJSON(gj, {
-        // IMPORTANT: convert 0..360 longitudes -> -180..180 for Leaflet
-        coordsToLatLng: function(coords){
-          var lon = coords[0], lat = coords[1];
-          if (lon > 180) lon = lon - 360;
-          return L.latLng(lat, lon);
-        },
-        
-pointToLayer: function(feature, latlng){
-  var t = Number(feature.properties && feature.properties.t_f);
-  var r = radiusForZoom(map.getZoom());
-  var c = tempColor(t);
-
-  // Base "blob" for gradient field
-  var base = L.circleMarker(latlng, {
-    renderer: hrrrCanvas,
-    radius: r,
-    weight: 0,
-    fillColor: c,
-    fillOpacity: 0.35,
-    _role: "base"
-  });
-
-  // Core dot for "sample point" feel (kept subtle so it doesn't look too polka-dot)
-  var core = L.circleMarker(latlng, {
-    renderer: hrrrCanvas,
-    radius: Math.max(2, Math.round(r * 0.18)),
-    weight: 0,
-    fillColor: c,
-    fillOpacity: 0.55,
-    _role: "core"
-  });
-
-  var grp = L.layerGroup([base, core]);
-  // stash references so we can resize + bind tooltips correctly
-  grp._base = base;
-  grp._core = core;
-  if (isFinite(t)) { hrrrPoints.push({lat: latlng.lat, lon: latlng.lng, tF: t}); }
-  return grp;
-},
-        onEachFeature: function(feature, layer){
-          var t = (feature.properties && feature.properties.t_f != null) ? Number(feature.properties.t_f).toFixed(1) : "NA";
-          if (layer && layer._core && layer._core.bindTooltip){
-            layer._core.bindTooltip(t + "°F", { sticky: true });
-          } else if (layer && layer.bindTooltip){
-            layer.bindTooltip(t + "°F", { sticky: true });
-          }
-        }
-      }).addTo(hrrrTempLayer);
-      // If HRRR layer is currently visible, show state boundaries too
-      if (map.hasLayer(hrrrTempLayer)) { addStateLines(); }
-      updateHrrrTempRadius();
-    })
-    .catch(function(err){ console.log("HRRR temp load failed:", err); });
-
-// We'll manage radar ourselves but still expose a checkbox
-  var lc = L.control.layers(null, overlays, { collapsed:false }).addTo(map);
-
-  // Remove any base-layer radio section if Leaflet created it empty
-  setTimeout(function(){
-    var el = document.querySelector(".leaflet-control-layers-base");
-    if (el) el.style.display = "none";
-  }, 50);
-
-  // Reliable layer toggle handling (Leaflet provides e.layer, not e.name)
-  
-  function enforceSingleOverlay(layerAdded){
-    // Only one of the main products at a time (RADAR, SNOW, TEMP).
-    // State lines are driven by TEMP and are not part of this exclusivity.
-    var mainLayers = [
-      overlays["Composite Radar (Observed)"],
-      overlays["GFS Snow Forecast"],
-      overlays["Global Temp (ERA5) – Apr 10 (21Z)"],
-      overlays["Global Temp (ERA5) – Apr 11 (21Z)"],
-      hrrrTempLayer
-    ];
-
-    for (var i=0;i<mainLayers.length;i++){
-      var LYR = mainLayers[i];
-      if (!LYR) continue;
-      if (LYR === layerAdded) continue;
-      if (map.hasLayer(LYR)) map.removeLayer(LYR);
-    }
-
-    // Also ensure radar/snow overlays clean up if their checkbox was turned off by us
-    if (!map.hasLayer(overlays["Composite Radar (Observed)"])){
-      obsRadarEnabled = false;
-      if (obsRadarOverlay) map.removeLayer(obsRadarOverlay);
-    }
-    if (!map.hasLayer(overlays["GFS Snow Forecast"])){
-      gfsSnowEnabled = false;
-      if (gfsSnowOverlay) map.removeLayer(gfsSnowOverlay);
-    }
-    if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 10 (21Z)"])){
-      era5Apr10Enabled = false;
-    }
-    if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 11 (21Z)"])){
-      era5Apr11Enabled = false;
-    }
-    updateEra5Global();
-
-  }
-map.on("overlayadd", function(e){
-    enforceSingleOverlay(e.layer);
-    if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
-    if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
-    if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
-      era5Apr10Enabled = true;
-      era5Apr11Enabled = false;
-      setCurZToEra5("apr10");
-      updateEra5Global();
-      updateProductLabel();
-    }
-    if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) {
-      era5Apr11Enabled = true;
-      era5Apr10Enabled = false;
-      setCurZToEra5("apr11");
-      updateEra5Global();
-      updateProductLabel();
-    }
-    if (e.layer === overlays["HRRR Temp (2m)"]) {
-      addStateLines();
-      updateProductLabel();
-      updateHrrrTempRadius();
-    }
-    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = true; updateFronts(); }
-  
-    syncOpacitySliderToActive();
-    applyActiveOpacity();
-    updateLegend();
+updateTimeLabel();
+
+// Try to load alerts timeline index (if present in repo)
+loadAlertsTimelineIndex().then(()=>{
+  snapCurrentToAlertsTimeline();
+  updateTimeLabel();
 });
-  map.on("overlayremove", function(e){
-    if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
-    if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
-    if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) { era5Apr10Enabled = false; updateEra5Global(); updateProductLabel(); }
-    if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) { era5Apr11Enabled = false; updateEra5Global(); updateProductLabel(); }
-    if (e.layer === overlays["HRRR Temp (2m)"]) {
-      removeStateLines();
-      updateProductLabel();
-    }
-    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = false; updateFronts(); }
 
-    syncOpacitySliderToActive();
-    applyActiveOpacity();
-    updateLegend();
-  });
+document.getElementById("backBtn").onclick = async () => {
+  current = new Date(current.getTime() - stepHours*3600*1000);
+  snapCurrentToAlertsTimeline();
+  updateTimeLabel();
+  await refreshAll();
+};
+document.getElementById("fwdBtn").onclick = async () => {
+  current = new Date(current.getTime() + stepHours*3600*1000);
+  snapCurrentToAlertsTimeline();
+  updateTimeLabel();
+  await refreshAll();
+};
 
-  // Ensure radar checkbox starts ON
-  // Leaflet doesn't automatically check our placeholder group, so we force it:
-  (function forceRadarChecked(){
-    var inputs = document.querySelectorAll(".leaflet-control-layers-overlays input");
-    for (var i=0;i<inputs.length;i++){
-      var label = inputs[i].parentElement && inputs[i].parentElement.textContent || "";
-      if (label.indexOf("Composite Radar") !== -1){
-        inputs[i].checked = true;
+// Mirror controls to the master banner (from index 15)
+const backBtnBanner = document.getElementById("backBtnBanner");
+const fwdBtnBanner  = document.getElementById("fwdBtnBanner");
+if (backBtnBanner) backBtnBanner.onclick = document.getElementById("backBtn").onclick;
+if (fwdBtnBanner)  fwdBtnBanner.onclick  = document.getElementById("fwdBtn").onclick;
+
+const zoomOutBtnBanner = document.getElementById("zoomOutBtnBanner");
+const zoomInBtnBanner  = document.getElementById("zoomInBtnBanner");
+if (zoomOutBtnBanner) zoomOutBtnBanner.onclick = () => map.zoomOut();
+if (zoomInBtnBanner)  zoomInBtnBanner.onclick  = () => map.zoomIn();
+
+
+
+/* ------------------------------------------------------------
+   3) Day controls (Particles only: Apr 13/14/15)
+------------------------------------------------------------ */
+let particleDay = 14; // 13, 14, 15
+function updateDayLabel(){
+  dayLabelEl.textContent = (particleDay === 13) ? "Apr 13" : (particleDay === 15) ? "Apr 15" : "Apr 14";
+}
+updateDayLabel();
+
+document.getElementById("dayBackBtn").onclick = async () => {
+  particleDay = Math.max(13, particleDay - 1);
+  updateDayLabel();
+  await refreshParticlesIfOn();
+};
+document.getElementById("dayFwdBtn").onclick = async () => {
+  particleDay = Math.min(15, particleDay + 1);
+  updateDayLabel();
+  await refreshParticlesIfOn();
+};
+
+/* ------------------------------------------------------------
+   4) Layers
+------------------------------------------------------------ */
+const tempLayer = L.layerGroup().addTo(map);
+const dewLayer  = L.layerGroup();
+const windNumLayer = L.layerGroup();
+const windArrowLayer = L.layerGroup();
+const gustLayer = L.layerGroup();
+const visLayer  = L.layerGroup();
+const presLayer = L.layerGroup();
+const wxLayer   = L.layerGroup();
+
+// Alerts
+const alertsLayer = L.geoJSON(null);
+
+// Particles: placeholder for checkbox + actual velocity layer
+const particlesToggle = L.layerGroup();
+let particlesLayer = null;
+
+L.control.layers(
+  { "OpenStreetMap": osm },
+  {
+    "Temperature (°F)": tempLayer,
+    "Dew Point (°F)": dewLayer,
+    "Wind Speed (mph)": windNumLayer,
+    "Wind Arrows": windArrowLayer,
+    "Wind Gusts (mph)": gustLayer,
+    "Visibility (mi)": visLayer,
+    "Pressure (trend)": presLayer,
+    "Weather Codes": wxLayer,
+    "Alerts (WWA)": alertsLayer,
+    "Daily wind particles": particlesToggle
+  },
+  { collapsed:false }
+).addTo(map);
+
+/* ------------------------------------------------------------
+   5) Collision thinning (drop stations if overlapping)
+------------------------------------------------------------ */
+class CollisionIndex {
+  constructor(cellSizePx){
+    this.cell = cellSizePx;
+    this.grid = new Map();
+  }
+  _key(cx, cy){ return `${cx},${cy}`; }
+  _cellOf(p){ return [Math.floor(p.x / this.cell), Math.floor(p.y / this.cell)]; }
+  canPlace(p, minSepPx){
+    const [cx, cy] = this._cellOf(p);
+    const r2 = minSepPx * minSepPx;
+    for (let dx=-1; dx<=1; dx++){
+      for (let dy=-1; dy<=1; dy++){
+        const key = this._key(cx+dx, cy+dy);
+        const arr = this.grid.get(key);
+        if (!arr) continue;
+        for (const q of arr){
+          const ddx = p.x - q.x;
+          const ddy = p.y - q.y;
+          if ((ddx*ddx + ddy*ddy) < r2) return false;
+        }
       }
     }
-  })();
-  // Sync UI for default layer
-  syncOpacitySliderToActive();
-  applyActiveOpacity();
-  updateLegend();
-
-  // ---------- Updaters ----------
-  function setStatus(s){ /* hidden */ }
-  function setTimeLabel(){
-    document.getElementById("bannerTimeLabel").textContent = formatCentralLabel(curZ);
+    const key = this._key(cx, cy);
+    if (!this.grid.has(key)) this.grid.set(key, []);
+    this.grid.get(key).push({x:p.x, y:p.y});
+    return true;
   }
-
-  function updateProductLabel(){
-  var pl = document.getElementById("productLabel");
-  if (!pl) return;
-
-  // IMPORTANT: never concatenate labels (it will crowd the middle).
-  // Choose ONE label based on what is currently visible/active.
-  var candidates = [
-    { on: (typeof era5Apr10Enabled !== "undefined" && (era5Apr10Enabled || era5Apr11Enabled)), label: "GLOBAL TEMP" },
-    { on: (typeof gfsSnowEnabled !== "undefined" && gfsSnowEnabled), label: "SNOW" },
-    { on: (typeof ptypeEnabled  !== "undefined" && ptypeEnabled),  label: "P-TYPE" },
-    { on: (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)), label: "TEMP" },
-    { on: (typeof obsRadarEnabled !== "undefined" && obsRadarEnabled), label: "RADAR" }
-  ];
-
-  var label = "MAP";
-  for (var i=0;i<candidates.length;i++){
-    if (candidates[i].on){ label = candidates[i].label; break; }
-  }
-  pl.textContent = label;
 }
-  function updateLegend(){
-    var el = document.getElementById("mapLegend");
-    if (!el) return;
-    var bar = el.querySelector(".leg-mini-bar");
-    var title = "";
 
-    var key = getActiveProductKey();
-    if (key === "radar"){
-      title = "Radar reflectivity";
-      if (bar) bar.style.background = "linear-gradient(90deg, #2b83ba, #4ecdc4, #a8e6a3, #ffd166, #ef476f)";
-      el.style.display = "";
-    } else if (key === "snow"){
-      title = "Snow (forecast)";
-      if (bar) bar.style.background = "linear-gradient(90deg, #ffffff, #d7ecff, #9ac8ff, #4f7cff)";
-      el.style.display = "";
-    } else if (key === "global"){
-      title = "Global 2m Temperature (°F) — ERA5";
-      if (bar) bar.style.background = "linear-gradient(90deg, #2d004b 0%, #542788 12%, #2166ac 26%, #67a9cf 40%, #d1e5f0 52%, #fff7bc 62%, #fec44f 72%, #f16913 84%, #d73027 100%)";
-      el.style.display = "";
-    } else { // temp
-      title = "2m Temperature (°F)";
-      // WeatherBell-ish continuous temp ramp (cold blues -> greens -> yellows -> oranges -> reds -> purples)
-      if (bar) bar.style.background = "linear-gradient(90deg, #0b2e83 0%, #1f66d3 15%, #6fb7ff 28%, #1f8a3a 42%, #7fe36d 52%, #ffe14a 63%, #ff9a1f 73%, #e31a1c 82%, #a4007c 92%, #ff66ff 100%)";
-      el.style.display = "";
+function minSepForZoom(z){
+  if (z <= 4) return 54;
+  if (z === 5) return 46;
+  if (z === 6) return 38;
+  if (z === 7) return 32;
+  return 0; // z >= 8 show all
+}
+function allowByCollision(index, lat, lon, minSepPx){
+  if (minSepPx <= 0) return true;
+  const p = map.latLngToLayerPoint([lat, lon]);
+  return index.canPlace(p, minSepPx);
+}
+
+/* ------------------------------------------------------------
+   6) Color ramps
+------------------------------------------------------------ */
+function piecewiseColor(x, stops){
+  if (x == null || !Number.isFinite(x)) return "rgb(255,255,255)";
+  if (x <= stops[0].v) return `rgb(${stops[0].c.join(",")})`;
+  if (x >= stops[stops.length-1].v) return `rgb(${stops[stops.length-1].c.join(",")})`;
+  for (let i=0; i<stops.length-1; i++){
+    const a = stops[i], b = stops[i+1];
+    if (x >= a.v && x <= b.v){
+      const k = (x - a.v) / (b.v - a.v);
+      const r = Math.round(a.c[0] + (b.c[0]-a.c[0]) * k);
+      const g = Math.round(a.c[1] + (b.c[1]-a.c[1]) * k);
+      const bb= Math.round(a.c[2] + (b.c[2]-a.c[2]) * k);
+      return `rgb(${r},${g},${bb})`;
+    }
+  }
+  return "rgb(255,255,255)";
+}
+
+function tempColorF(t){
+  return piecewiseColor(t, [
+    {v: 10, c: [170, 220, 255]},
+    {v: 20, c: [120, 190, 255]},
+    {v: 30, c: [0, 70, 200]},
+    {v: 40, c: [0, 170, 0]},
+    {v: 50, c: [150, 255, 150]},
+    {v: 60, c: [255, 235, 0]},
+    {v: 70, c: [255, 140, 0]},
+    {v: 85, c: [255, 80, 0]}
+  ]);
+}
+
+function dewColorF(td){
+  return piecewiseColor(td, [
+    {v: 10, c: [90, 55, 20]},
+    {v: 20, c: [140, 95, 40]},
+    {v: 30, c: [200, 160, 110]},
+    {v: 50, c: [190, 200, 140]},
+    {v: 60, c: [0, 170, 0]},
+    {v: 70, c: [0, 90, 0]}
+  ]);
+}
+
+function windColorMph(spd){
+  return piecewiseColor(spd, [
+    {v: 0,  c: [0, 40, 160]},
+    {v: 10, c: [0, 120, 255]},
+    {v: 20, c: [0, 210, 180]},
+    {v: 35, c: [255, 220, 0]},
+    {v: 50, c: [255, 120, 0]},
+    {v: 70, c: [255, 80, 0]}
+  ]);
+}
+
+function pressureTrendColor(deltaInHg){
+  if (deltaInHg == null || !Number.isFinite(deltaInHg)) return "rgb(248,248,248)";
+  if (deltaInHg > 0.02)  return "rgb(215,245,215)";
+  if (deltaInHg < -0.02) return "rgb(255,220,220)";
+  return "rgb(240,240,240)";
+}
+
+function visStyle(vis){
+  if (vis == null || !Number.isFinite(vis)) {
+    return { bg:"rgba(255,255,255,0.65)", border:"#333" };
+  }
+  const v = Math.max(0, Math.min(10, vis));
+  const alpha = 1 - (v / 10);
+  const border = (v < 1) ? "#666" : "#333";
+  return { bg:`rgba(255,255,255,${alpha.toFixed(3)})`, border };
+}
+
+/* ------------------------------------------------------------
+   7) Icons
+------------------------------------------------------------ */
+function dotIcon(txt, fill, size=28, fontSize=12, borderColor="#333"){
+  return L.divIcon({
+    className:"",
+    html:`<div class="dot"
+              style="width:${size}px;height:${size}px;
+                     background:${fill};
+                     border-color:${borderColor};
+                     font-size:${fontSize}px;">${txt}</div>`,
+    iconSize:[size,size],
+    iconAnchor:[size/2,size/2]
+  });
+}
+
+/* Wind arrow as inline SVG divIcon */
+function windArrowIcon(bearingDeg, mph){
+  const spd = (mph == null || !Number.isFinite(mph)) ? 0 : mph;
+  const color = windColorMph(spd);
+
+  const Lmin = 14, Lmax = 52;
+  const len = Math.max(Lmin, Math.min(Lmax, Lmin + spd * 0.65));
+
+  const w = 60, h = 60;
+  const cx = w/2, cy = h/2;
+
+  const svg = `
+    <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      <g transform="translate(${cx},${cy})">
+        <line x1="0" y1="${len/2}" x2="0" y2="${-len/2}" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+        <polygon points="0,${-len/2-8} -8,${-len/2+6} 8,${-len/2+6}" fill="${color}"/>
+      </g>
+    </svg>
+  `;
+
+  return L.divIcon({
+    className:"",
+    html:`<div style="width:${w}px;height:${h}px;transform:rotate(${bearingDeg}deg);">
+            ${svg}
+          </div>`,
+    iconSize:[w,h],
+    iconAnchor:[w/2,h/2]
+  });
+}
+
+/* ------------------------------------------------------------
+   8) Helpers
+------------------------------------------------------------ */
+function num(v){
+  const s = (v ?? "").toString().trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+function ktToMph(kt){ return kt == null ? null : (kt * 1.15078); }
+
+function parseVisMiles(raw){
+  if (raw == null) return { miles:null, label:"" };
+  let s = String(raw).trim();
+  if (!s) return { miles:null, label:"" };
+
+  if (s.startsWith("M")) s = s.slice(1);
+  s = s.replace(/\s+/g, " ");
+
+  const n = Number(s);
+  if (Number.isFinite(n)) return { miles:n, label:formatVisLabel(n) };
+
+  const parts = s.split(" ");
+  let whole = 0;
+  let frac = null;
+
+  if (parts.length === 2){
+    whole = Number(parts[0]);
+    frac = parts[1];
+  } else {
+    frac = parts[0];
+  }
+
+  if (frac && frac.includes("/")){
+    const [a,b] = frac.split("/").map(Number);
+    if (Number.isFinite(a) && Number.isFinite(b) && b !== 0){
+      const val = (Number.isFinite(whole) ? whole : 0) + (a/b);
+      return { miles:val, label:formatVisLabel(val) };
+    }
+  }
+  return { miles:null, label:String(raw).trim() };
+}
+function formatVisLabel(x){
+  if (!Number.isFinite(x)) return "";
+  if (x >= 10) return "10+";
+
+  const denom = 8;
+  const whole = Math.floor(x);
+  const frac = x - whole;
+  const nume = Math.round(frac * denom);
+
+  if (nume === 0) return String(whole);
+  if (nume === denom) return String(whole + 1);
+
+  const gcd = (a,b)=>b?gcd(b,a%b):a;
+  const g = gcd(nume, denom);
+  const n = nume / g;
+  const d = denom / g;
+
+  if (whole === 0) return `${n}/${d}`;
+  return `${whole} ${n}/${d}`;
+}
+
+function popupHTML(r, dAlt){
+  const tmp = num(r.tmpf);
+  const dew = num(r.dwpf);
+  const drct = num(r.drct);
+  const sknt = num(r.sknt);
+  const gust = num(r.gust);
+  const alti = num(r.alti);
+
+  const mph  = sknt != null ? Math.round(ktToMph(sknt)) : "—";
+  const gmh  = gust != null ? Math.round(ktToMph(gust)) : "—";
+  const altTxt = alti != null ? alti.toFixed(2) : "—";
+  const dTxt = (dAlt == null) ? "—" : `${dAlt > 0 ? "+" : ""}${dAlt.toFixed(2)} in/3h`;
+
+  const visObj = parseVisMiles(r.vsby);
+  const visTxt = (visObj.label || r.vsby || "—");
+
+  const toDir = (drct != null) ? ((drct + 180) % 360) : null;
+
+  return `
+    <div style="font:600 13px/1.3 Arial,sans-serif">
+      <div style="font-size:14px;margin-bottom:4px"><b>${r.station || "Station"}</b></div>
+      <div style="opacity:.85;margin-bottom:6px">Valid: ${r.valid || ""} UTC</div>
+      <div>Temp: <b>${tmp == null ? "—" : Math.round(tmp)}</b> °F</div>
+      <div>Dew Pt: <b>${dew == null ? "—" : Math.round(dew)}</b> °F</div>
+      <div>Wind: <b>${mph}</b> mph (gust <b>${gmh}</b>)</div>
+      <div>Wind dir (FROM): <b>${drct == null ? "—" : drct.toFixed(0)}°</b></div>
+      <div>Arrow points (TO): <b>${toDir == null ? "—" : toDir.toFixed(0)}°</b></div>
+      <div>Vis: <b>${visTxt}</b> mi</div>
+      <div>Altimeter: <b>${altTxt}</b> inHg</div>
+      <div>Alt trend (3h): <b>${dTxt}</b></div>
+      <div>Wx: <b>${(r.wxcodes || "").trim() || "—"}</b></div>
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------
+   9) METAR fetch
+------------------------------------------------------------ */
+const reportType = 3;
+const SD_ONLY = ["SD_ASOS"];
+const REST = ["MN_ASOS","IA_ASOS","NE_ASOS","ND_ASOS","WI_ASOS","IL_ASOS","MI_ASOS"];
+
+function asosURL(d, networks){
+  const iso = toISOZ(d);
+  return "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py"
+    + "?data=tmpf&data=dwpf&data=drct&data=sknt&data=gust&data=vsby&data=alti&data=wxcodes"
+    + `&network=${encodeURIComponent(networks.join(","))}`
+    + `&report_type=${reportType}`
+    + "&latlon=yes&format=onlycomma&tz=UTC"
+    + `&sts=${encodeURIComponent(iso)}`
+    + `&ets=${encodeURIComponent(iso)}`
+    + "&missing=empty";
+}
+
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.startsWith("#"));
+  if (lines.length < 2) return [];
+  const header = lines[0].split(",");
+  return lines.slice(1).map(line => {
+    const cols = line.split(",");
+    const obj = {};
+    header.forEach((h,i)=>obj[h]=cols[i] ?? "");
+    return obj;
+  });
+}
+
+async function fetchRows(d, networks){
+  const resp = await fetch(asosURL(d, networks), { cache:"no-store" });
+  if (!resp.ok) throw new Error(`METAR HTTP ${resp.status}`);
+  return parseCSV(await resp.text());
+}
+
+/* ------------------------------------------------------------
+   10) Alerts styling + LOADER (UPDATED for your new filenames)
+------------------------------------------------------------ */
+const NWS_EVENT_COLOR = {
+  // Severe / Flood (from NWS Hazards Map colors)
+  "Tornado Warning": "#FF0000",
+  "Severe Thunderstorm Warning": "#FFA500",
+  "Flash Flood Warning": "#8B0000",
+  "Flash Flood Watch": "#2E8B57",
+  "Flood Warning": "#00FF00",
+  "Flood Advisory": "#00FF7F",
+  "Flood Watch": "#2E8B57",
+
+  // Winter
+  "Blizzard Warning": "#FF4500",
+  "Winter Storm Warning": "#FF69B4",
+  "Winter Storm Watch": "#4682B4",
+  "Winter Weather Advisory": "#7B68EE",
+  "Ice Storm Warning": "#8B008B",
+  "Snow Squall Warning": "#C71585",
+
+  // Wind / Other
+  "High Wind Warning": "#DAA520",
+  "Wind Advisory": "#D2B48C",
+  "Dense Fog Advisory": "#708090"
+};
+
+function pickProp(p, keys){
+  if (!p) return "";
+  for (const k of keys){
+    if (p[k] != null && String(p[k]).trim() !== "") return String(p[k]).trim();
+    const kk = Object.keys(p).find(x => x.toLowerCase() === k.toLowerCase());
+    if (kk && p[kk] != null && String(p[kk]).trim() !== "") return String(p[kk]).trim();
+  }
+  return "";
+}
+
+function eventNameFromProps(p){
+  const e = pickProp(p, ["event","headline","name","title"]);
+  if (e) return e;
+
+  const phen = pickProp(p, ["phenomena","phenom","PHENOM","phen"]);
+  const sig  = pickProp(p, ["significance","sig","SIG"]);
+  if (phen && sig){
+    const key = `${phen}.${sig}`.toUpperCase();
+    // Common VTEC phenom.sig -> human name
+    const MAP = {
+      'BZ.W':'Blizzard Warning',
+      'WS.W':'Winter Storm Warning',
+      'WS.A':'Winter Storm Watch',
+      'WW.Y':'Winter Weather Advisory',
+      'ZR.Y':'Freezing Rain Advisory',
+      'IS.W':'Ice Storm Warning',
+      'SQ.W':'Snow Squall Warning',
+
+      'TO.W':'Tornado Warning',
+      'TO.A':'Tornado Watch',
+      'SV.W':'Severe Thunderstorm Warning',
+      'SV.A':'Severe Thunderstorm Watch',
+      'FF.W':'Flash Flood Warning',
+      'FF.A':'Flash Flood Watch',
+      'FA.W':'Flood Warning',
+      'FA.Y':'Flood Advisory',
+      'FL.W':'Flood Warning',
+      'FL.Y':'Flood Advisory',
+
+      'MA.W':'Marine Warning',
+      'GL.W':'Gale Warning',
+      'SR.W':'Storm Warning'
+    };
+    if (MAP[key]) return MAP[key];
+    return key;
+  }
+
+  const wfo = pickProp(p, ["WFO","wfo"]);
+  const etn = pickProp(p, ["ETN","etn"]);
+  return (wfo || etn) ? `Alert ${wfo || ""} ${etn || ""}`.trim() : "Alert";
+}
+
+function colorForAlertName(name){
+  if (NWS_EVENT_COLOR[name]) return NWS_EVENT_COLOR[name];
+  const lower = String(name).toLowerCase();
+  if (lower.includes("blizzard") && lower.includes("warning")) return NWS_EVENT_COLOR["Blizzard Warning"];
+  if (lower.includes("winter storm") && lower.includes("warning")) return NWS_EVENT_COLOR["Winter Storm Warning"];
+  if (lower.includes("winter storm") && lower.includes("watch")) return NWS_EVENT_COLOR["Winter Storm Watch"];
+  if (lower.includes('winter weather') && lower.includes('advisory')) return NWS_EVENT_COLOR['Winter Weather Advisory'];
+  if (lower.includes('tornado') && lower.includes('warning')) return NWS_EVENT_COLOR['Tornado Warning'];
+  if (lower.includes('tornado') && lower.includes('watch')) return NWS_EVENT_COLOR['Tornado Watch'];
+  if (lower.includes('severe thunderstorm') && lower.includes('warning')) return NWS_EVENT_COLOR['Severe Thunderstorm Warning'];
+  if (lower.includes('severe thunderstorm') && lower.includes('watch')) return NWS_EVENT_COLOR['Severe Thunderstorm Watch'];
+  if (lower.includes('flash flood') && lower.includes('warning')) return NWS_EVENT_COLOR['Flash Flood Warning'];
+  if (lower.includes('flash flood') && lower.includes('watch')) return NWS_EVENT_COLOR['Flash Flood Watch'];
+  if (lower == 'flood warning') return NWS_EVENT_COLOR['Flood Warning'];
+  if (lower == 'flood advisory') return NWS_EVENT_COLOR['Flood Advisory'];
+  return '#CC0000'; // fallback
+
+}
+
+// NEW (your repo): alerts_20180414_0000Z.geojson
+function alertsFileCompactHourly(d){
+  const Y = d.getUTCFullYear();
+  const M = String(d.getUTCMonth()+1).padStart(2,"0");
+  const D = String(d.getUTCDate()).padStart(2,"0");
+  const H = String(d.getUTCHours()).padStart(2,"0");
+  return `./alerts_${Y}${M}${D}_${H}00Z.geojson`;
+}
+
+// OLD (your repo): alerts_2018-04-14T21Z.geojson
+function alertsFileOldDash(d){
+  const Y = d.getUTCFullYear();
+  const M = String(d.getUTCMonth()+1).padStart(2,"0");
+  const D = String(d.getUTCDate()).padStart(2,"0");
+  const H = String(d.getUTCHours()).padStart(2,"0");
+  return `./alerts_${Y}-${M}-${D}T${H}Z.geojson`;
+}
+
+// Extra fallback (sometimes people store T2100Z)
+function alertsFileOldWithMinutes(d){
+  const Y = d.getUTCFullYear();
+  const M = String(d.getUTCMonth()+1).padStart(2,"0");
+  const D = String(d.getUTCDate()).padStart(2,"0");
+  const H = String(d.getUTCHours()).padStart(2,"0");
+  return `./alerts_${Y}-${M}-${D}T${H}00Z.geojson`;
+}
+
+async function fetchFirstOk(urls){
+  let lastErr = "";
+  for (const u of urls){
+    try{
+      const r = await fetch(u, { cache:"no-store" });
+      if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
+      const gj = await r.json();
+      return { url: u, gj };
+    } catch(e){
+      lastErr = e.message || String(e);
+    }
+  }
+  throw new Error(lastErr || "No alert file matched");
+}
+
+async function loadAlerts(){
+  if (!map.hasLayer(alertsLayer)) return;
+
+  // If you have a timeline_index.json + timeline_hourly/*.geojson, use it.
+  const snapped = snapCurrentToAlertsTimeline();
+
+  let candidates = [];
+  if (snapped && snapped.file){
+    candidates = [ './' + snapped.file.replace(/^\.\//, '') ];
+  } else {
+    // Backward compatibility: try legacy naming patterns
+    candidates = [
+      alertsFileCompactHourly(current),
+      alertsFileOldDash(current),
+      alertsFileOldWithMinutes(current)
+    ];
+  }
+
+  try{
+    const { url, gj } = await fetchFirstOk(candidates);
+
+    alertsLayer.clearLayers();
+
+    let polyCount = 0;
+    L.geoJSON(gj, {
+      style: (feat) => {
+        const p = feat.properties || {};
+        const name = eventNameFromProps(p);
+        const c = colorForAlertName(name);
+        return { weight:2, color:c, fillColor:c, fillOpacity:0.18 };
+      },
+      onEachFeature: (feat, layer) => {
+        polyCount++;
+        const p = feat.properties || {};
+        const name = eventNameFromProps(p);
+        const c = colorForAlertName(name);
+
+        const wfo = pickProp(p, ['WFO','wfo']);
+        const etn = pickProp(p, ['ETN','etn']);
+        const status = pickProp(p, ['STATUS','status']);
+        const issued = pickProp(p, ['issuance','issued','onset','ISSUANCE','ISSUED','ISSUE']);
+        const expire = pickProp(p, ['expire','expires','end','EXPIRE','EXPIRES']);
+
+        const lines = [];
+        lines.push(`<div><span class="swatch" style="background:${c}"></span><b>${name}</b></div>`);
+        if (wfo || etn) lines.push(`Office/Event: <b>${wfo || '—'}</b> / <b>${etn || '—'}</b>`);
+        if (status) lines.push(`Status: <b>${status}</b>`);
+        if (issued) lines.push(`Issued: <b>${issued}</b>`);
+        if (expire) lines.push(`Expires: <b>${expire}</b>`);
+
+        layer.bindPopup(lines.join('<br>'));
+      }
+    }).eachLayer(l => alertsLayer.addLayer(l));
+
+    // Confirm which file loaded + how many polygons
+    const short = url.replace('./','');
+    setStatus(`Alerts loaded: ${short} | polygons: ${polyCount}`);
+
+  } catch(e){
+    console.warn('Alerts load failed:', e.message);
+    alertsLayer.clearLayers();
+    setStatus('Alerts not found for this hour (check filenames).');
+  }
+}
+
+/* ------------------------------------------------------------
+   11) Daily particles (toggle + day buttons)
+------------------------------------------------------------ */
+function particlesFileForDay(dayNum){
+  return `./wind_particles_201804${String(dayNum).padStart(2,"0")}.json`;
+}
+
+function normalizeVelocityJson(raw){
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  return raw;
+}
+
+async function refreshParticlesIfOn(){
+  if (!map.hasLayer(particlesToggle)) return;
+
+  if (typeof L.velocityLayer !== "function"){
+    setStatus("Wind particles: leaflet-velocity did not load.");
+    return;
+  }
+
+  const url = particlesFileForDay(particleDay);
+
+  try{
+    const r = await fetch(url, { cache:"no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const raw = await r.json();
+    const velData = normalizeVelocityJson(raw);
+
+    if (particlesLayer){
+      try { map.removeLayer(particlesLayer); } catch(_) {}
+      particlesLayer = null;
     }
 
-    el.title = title;
-  }
-
-
-  function updateRadar(){
-    if (!obsRadarEnabled) return;
-    var url = radarUrlFor(curZ);
-
-    // Test-load the image before swapping overlay (avoids blank overlay on 404)
-    var img = new Image();
-    img.onload = function(){
-      if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); }
-      var op = 0.70; var rs = document.getElementById("radarOpacity"); if (rs){ op = Math.max(0.2, Math.min(1, parseInt(rs.value||"70",10)/100)); }
-      obsRadarOverlay = L.imageOverlay(url, RADAR_BOUNDS, { opacity: op, interactive:false });
-      obsRadarOverlay.addTo(map);
-      applyActiveOpacity();
-      setStatus("Radar: " + url);
-    };
-    img.onerror = function(){
-      setStatus("Radar missing: " + url + " (check /radar_frames/)");
-    };
-    img.src = url;
-  }
-
-  
-  function updateGfsSnow(){
-    if (!gfsSnowEnabled) return;
-
-    var url = gfsSnowUrlFor(curZ);
-
-    // Preload to avoid flashing broken images
-    var img = new Image();
-    img.onload = function(){
-      if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); }
-      // Use same bounds as the rest of the CONUS layers for consistent alignment
-      gfsSnowOverlay = L.imageOverlay(url, RADAR_BOUNDS, { opacity: 0.75, interactive: false });
-      gfsSnowOverlay.addTo(map);
-      setStatus("GFS Snow: " + url);
-    };
-    img.onerror = function(){
-      setStatus("GFS Snow missing: " + url + " (check /gfs_snow/)");
-    };
-    img.src = url;
-  }
-
-function updateAlerts(){
-    
-    var url = alertsUrlFor(curZ);
-    fetch(url).then(function(r){
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    }).then(function(gj){
-      alertsLayer.clearLayers();
-      alertsLayer.addData(gj);
-      alertsLayer.addTo(map);
-      setStatus("Alerts: " + url);
-    }).catch(function(err){
-      alertsLayer.clearLayers();
-      setStatus("Alerts missing: " + url);
+    particlesLayer = L.velocityLayer({
+      data: velData,
+      velocityScale: 0.004,
+      particleAge: 120,
+      particleMultiplier: 1/900,
+      lineWidth: 1.7,
+      colorScale: [
+        "rgb(0,40,160)",
+        "rgb(0,120,255)",
+        "rgb(0,210,180)",
+        "rgb(255,220,0)",
+        "rgb(255,120,0)"
+      ],
+      minVelocity: 0,
+      maxVelocity: 60,
+      displayValues: false
     });
+
+    particlesLayer.addTo(map);
+    setStatus(`Particles loaded: ${url.replace("./","")}`);
+
+  } catch(e){
+    console.warn("Particles failed:", url, e.message);
+    setStatus(`Particles not found: ${url.replace("./","")}`);
+  }
+}
+
+/* Toggle handlers for particles + alerts */
+map.on("overlayadd", async (e) => {
+  if (e.layer === particlesToggle) await refreshParticlesIfOn();
+  if (e.layer === alertsLayer) await loadAlerts();
+});
+map.on("overlayremove", (e) => {
+  if (e.layer === particlesToggle && particlesLayer){
+    map.removeLayer(particlesLayer);
+    particlesLayer = null;
+  }
+});
+
+/* ------------------------------------------------------------
+   12) Main refresh (METAR + alerts + arrows)
+------------------------------------------------------------ */
+async function refreshAll(){
+  setStatus("Loading METARs…");
+
+  const prev = new Date(current.getTime() - stepHours*3600*1000);
+
+  const [sdNow, restNow, sdPrev, restPrev] = await Promise.all([
+    fetchRows(current, SD_ONLY),
+    fetchRows(current, REST),
+    fetchRows(prev, SD_ONLY),
+    fetchRows(prev, REST)
+  ]);
+
+  const rowsNow  = sdNow.concat(restNow);
+  const rowsPrev = sdPrev.concat(restPrev);
+
+  const prevAlt = new Map();
+  for (const r of rowsPrev){
+    const st = (r.station || "").trim();
+    const a  = num(r.alti);
+    if (st && a != null) prevAlt.set(st, a);
   }
 
-  function updateAll(){
-    setTimeLabel();
-    updateRadar();
-    updateGfsSnow();
-    updateEra5Global();
-    updateAlerts();
-    updateProductLabel();
+  [tempLayer, dewLayer, windNumLayer, windArrowLayer, gustLayer, visLayer, presLayer, wxLayer].forEach(l => l.clearLayers());
+
+  const z = map.getZoom();
+  const minSep = minSepForZoom(z);
+
+  const idxTemp = new CollisionIndex(Math.max(24, minSep));
+  const idxDew  = new CollisionIndex(Math.max(24, minSep));
+  const idxWind = new CollisionIndex(Math.max(24, minSep));
+  const idxGust = new CollisionIndex(Math.max(24, minSep));
+  const idxVis  = new CollisionIndex(Math.max(24, minSep));
+  const idxPres = new CollisionIndex(Math.max(24, minSep));
+  const idxWx   = new CollisionIndex(Math.max(24, minSep));
+  const idxArr  = new CollisionIndex(Math.max(30, minSep));
+
+  let shown = 0, total = 0;
+
+  for (const r of rowsNow){
+    const lat = num(r.lat), lon = num(r.lon);
+    if (lat == null || lon == null) continue;
+    total++;
+
+    const st = (r.station || "").trim();
+    const alti = num(r.alti);
+    const prevA = st ? prevAlt.get(st) : null;
+    const dAlt = (alti != null && prevA != null) ? (alti - prevA) : null;
+
+    const popup = popupHTML(r, dAlt);
+
+    const tmp = num(r.tmpf);
+    const dew = num(r.dwpf);
+
+    const drct = num(r.drct);
+    const sknt = num(r.sknt);
+    const gust = num(r.gust);
+
+    const mph  = sknt != null ? ktToMph(sknt) : null;
+    const gmh  = gust != null ? ktToMph(gust) : null;
+
+    const visObj = parseVisMiles(r.vsby);
+    const visMi = visObj.miles;
+
+    if (tmp != null && allowByCollision(idxTemp, lat, lon, minSep)){
+      L.marker([lat,lon], { icon: dotIcon(String(Math.round(tmp)), tempColorF(tmp), 28, 12) })
+        .bindPopup(popup).addTo(tempLayer);
+    }
+
+    if (dew != null && allowByCollision(idxDew, lat, lon, minSep)){
+      L.marker([lat,lon], { icon: dotIcon(String(Math.round(dew)), dewColorF(dew), 28, 12) })
+        .bindPopup(popup).addTo(dewLayer);
+    }
+
+    if (mph != null && allowByCollision(idxWind, lat, lon, minSep)){
+      L.marker([lat,lon], { icon: dotIcon(String(Math.round(mph)), windColorMph(mph), 28, 12) })
+        .bindPopup(popup).addTo(windNumLayer);
+    }
+
+    if (mph != null && drct != null && allowByCollision(idxArr, lat, lon, minSep)){
+      const toDir = (drct + 180) % 360;
+      L.marker([lat,lon], { icon: windArrowIcon(toDir, mph) })
+        .bindPopup(popup).addTo(windArrowLayer);
+    }
+
+    if (gmh != null && allowByCollision(idxGust, lat, lon, minSep)){
+      L.marker([lat,lon], { icon: dotIcon(String(Math.round(gmh)), windColorMph(gmh), 30, 12) })
+        .bindPopup(popup).addTo(gustLayer);
+    }
+
+    if ((visObj.label || "").trim() && allowByCollision(idxVis, lat, lon, minSep)){
+      const style = visStyle(visMi);
+      L.marker([lat,lon], { icon: dotIcon(visObj.label, style.bg, 30, 11, style.border) })
+        .bindPopup(popup).addTo(visLayer);
+    }
+
+    if (alti != null && allowByCollision(idxPres, lat, lon, minSep)){
+      const fill = pressureTrendColor(dAlt);
+      L.marker([lat,lon], { icon: dotIcon(alti.toFixed(2), fill, 44, 12, "#999") })
+        .bindPopup(popup).addTo(presLayer);
+    }
+
+    const wx = (r.wxcodes || "").trim();
+    if (wx && allowByCollision(idxWx, lat, lon, minSep)){
+      L.marker([lat,lon], { icon: dotIcon(wx, "rgba(255,255,255,0.85)", 30, 10, "#999") })
+        .bindPopup(popup).addTo(wxLayer);
+    }
+
+    shown++;
   }
 
-  // ---------- Time controls ----------
-  function clampTime(){
-    if (curZ < startZ) curZ = new Date(startZ.getTime());
-    if (curZ > endZ) curZ = new Date(endZ.getTime());
-  }
+  setStatus(`Stations shown: ${shown}/${total} (minSep ${minSep}px).`);
 
-  document.getElementById('bBackBtn').onclick = function(){
-    curZ = new Date(curZ.getTime() - STEP_HOURS*3600*1000);
-    clampTime(); updateAll();
-  };
-  document.getElementById('bFwdBtn').onclick = function(){
-    curZ = new Date(curZ.getTime() + STEP_HOURS*3600*1000);
-    clampTime(); updateAll();
-  };
+  await loadAlerts();
+}
 
-  const zIn = document.getElementById("zoomInBtn");
-  const zOut = document.getElementById("zoomOutBtn");
-  if (zIn) zIn.onclick = () => map.zoomIn();
-  if (zOut) zOut.onclick = () => map.zoomOut();
-
-
-  // Initial
-  setTimeLabel();
-  // Add overlays based on default checkboxes
-  // Alerts starts OFF; radar starts ON.
-  updateAll();
-
-})();
+refreshAll().catch(err => {
+  console.error(err);
+  setStatus("Error: " + err.message);
+});
 </script>
+
+<script>
+  // Hook banner buttons to existing controls
+  (function(){
+    const back = document.getElementById('backBtn');
+    const fwd  = document.getElementById('fwdBtn');
+    const zb   = document.getElementById('zoomOutBtnBanner');
+    const zi   = document.getElementById('zoomInBtnBanner');
+    const bb   = document.getElementById('backBtnBanner');
+    const fb   = document.getElementById('fwdBtnBanner');
+    if (bb && back) bb.addEventListener('click', ()=> back.click());
+    if (fb && fwd)  fb.addEventListener('click', ()=> fwd.click());
+    if (zi) zi.addEventListener('click', ()=> map.zoomIn());
+    if (zb) zb.addEventListener('click', ()=> map.zoomOut());
+  })();
+</script>
+
 </body>
 </html>

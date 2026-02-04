@@ -244,6 +244,25 @@
   padding:6px 14px 10px 14px;
   font-family: Arial, sans-serif;
 }
+/* Keep all bottom-line controls on one row */
+.bottomline-center{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  width:100%;
+  max-width:1400px;
+  padding:0 14px;
+  flex-wrap:nowrap;
+}
+.bottomline-center > *{ flex:0 0 auto; }
+.bottomline-center .map-title{ margin:0 8px; }
+@media (max-width: 900px){
+  /* allow gentle shrink on small screens without wrapping */
+  .bottomline-center{ gap:10px; padding:0 10px; }
+  .bottomline-center .map-title{ font-size: 32px; }
+}
+
 
 /* Big product word, flexible */
 .banner-product{min-width:200px;display:flex;justify-content:center}
@@ -1610,6 +1629,14 @@ refreshAll().catch(err => {
 <script>
   // Hook banner buttons to existing controls
   (function(){
+    function updateBannerOffset(){
+      const b = document.getElementById('banner');
+      if(!b) return;
+      document.documentElement.style.setProperty('--banner-offset', (b.offsetHeight + 8) + 'px');
+    }
+    updateBannerOffset();
+    window.addEventListener('resize', updateBannerOffset);
+
     const back = document.getElementById('backBtn');
     const fwd  = document.getElementById('fwdBtn');
     const zb   = document.getElementById('zoomOutBtnBanner');

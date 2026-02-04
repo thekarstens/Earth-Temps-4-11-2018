@@ -1945,119 +1945,138 @@ function updateAlerts(){
     return out;
   }
 
-  async function fetchAsosRows(z){
-    // Pull an hour window of obs for all stations returned by the service.
-    // (IEM ASOS can return empty when start==end; grabbing a window is more reliable.)
-    const z1 = z;
-    const z2 = new Date(z.getTime() + 59 * 60 * 1000); // +59 minutes
+  async 
+// =========================
+// METAR Observations (ASOS/IEM) — robust version
+// =========================
 
-    const y1=z1.getUTCFullYear(), mo1=pad2(z1.getUTCMonth()+1), da1=pad2(z1.getUTCDate());
-    const hh1=pad2(z1.getUTCHours()), mm1=pad2(z1.getUTCMinutes());
-    const y2=z2.getUTCFullYear(), mo2=pad2(z2.getUTCMonth()+1), da2=pad2(z2.getUTCDate());
-    const hh2=pad2(z2.getUTCHours()), mm2=pad2(z2.getUTCMinutes());
+// Fetch ASOS "current" (or most recent) observations for a bounding box.
+// Uses IEM JSON service that your repo already used.
+async function fetchAsosRows(bounds, opts){
+  opts = opts || {};
+  var station = (opts.station || "_ALL");
+  var tz = (opts.tz || "America/Chicago");
 
-    const url =
-      "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?station=_ALL" +
-      "&data=tmpf&data=dwpf&data=sknt&data=drct&data=alti&data=metar" +
-      `&year1=${y1}&month1=${mo1}&day1=${da1}&hour1=${hh1}&minute1=${mm1}` +
-      `&year2=${y2}&month2=${mo2}&day2=${da2}&hour2=${hh2}&minute2=${mm2}` +
-      "&tz=UTC&format=comma&latlon=yes&report_type=3&direct=no";
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("ASOS fetch failed: " + res.status);
-    const text = await res.text();
+  // If bounds is missing, fall back to the map view.
+  if(!bounds && typeof map !== "undefined"){ bounds = map.getBounds(); }
 
-    const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length);
-    if (lines.length < 2) return [];
+  // Leaflet bounds: north/south/east/west
+  var north = bounds.getNorth();
+  var south = bounds.getSouth();
+  var east  = bounds.getEast();
+  var west  = bounds.getWest();
 
-    const header = csvSplit(lines[0]).map(h => h.trim().toLowerCase());
-    const rows = [];
-    for (let i=1;i<lines.length;i++){
-      const cols = csvSplit(lines[i]);
-      const obj = {};
-      for (let j=0;j<header.length && j<cols.length;j++){
-        obj[header[j]] = cols[j];
-      }
-      rows.push(obj);
-    }
-    return rows;
-  }
+  // IEM ASOS query: "current" is the easiest for your classroom use.
+  // If you later want *archived-by-time*, we can add "year/month/day/hour/minute" params.
+  var url = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py"
+          + "?data=all&tz=" + encodeURIComponent(tz)
+          + "&format=json&station=" + encodeURIComponent(station)
+          + "&lat1=" + encodeURIComponent(south)
+          + "&lat2=" + encodeURIComponent(north)
+          + "&lon1=" + encodeURIComponent(west)
+          + "&lon2=" + encodeURIComponent(east);
 
-  function safeNum(v){
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
+  var res = await fetch(url);
+  if(!res.ok){ throw new Error("METAR fetch failed: " + res.status); }
+  var j = await res.json();
+  return (j && j.data) ? j.data : [];
+}
 
-  function metarHtml(o){
-    const st = (o.station || "").toUpperCase();
-    const t = safeNum(o.tmpf);
-    const td = safeNum(o.dwpf);
-    const spd = safeNum(o.sknt);
-    const dir = safeNum(o.drct);
-    const alt = safeNum(o.alti);
-    const metar = o.metar || "";
-    const tStr = (t===null) ? "--" : Math.round(t).toString();
-    const tdStr = (td===null) ? "--" : Math.round(td).toString();
-    const windStr = (dir===null || spd===null) ? "--" : `${Math.round(dir)}° @ ${Math.round(spd)}kt`;
-    const altStr = (alt===null) ? "--" : alt;
-    return `
-      <div class="metar-badge">
-        <div class="metar-st">${st}</div>
-        <div class="metar-t">${tStr}</div>
-        <div class="metar-td">Td ${tdStr}</div>
-      </div>`;
-  }
+// Simple formatting helpers
+function fmtTempF(v){
+  var n = parseFloat(v);
+  return isFinite(n) ? Math.round(n) + "°F" : "";
+}
+function fmtWind(dir, sknt){
+  var d = parseFloat(dir), s = parseFloat(sknt);
+  if(!isFinite(s)){ return ""; }
+  var mph = Math.round(s * 1.15078);
+  if(isFinite(d)){ return Math.round(d) + "°@" + mph + "mph"; }
+  return mph + "mph";
+}
 
-  let metarLastMinuteKey = null;
+// Build / update the METAR layer
+async function updateMetars(){
+  if(!window.metarLayer){ return; }
+  try{
+    var rows = await fetchAsosRows(map.getBounds(), { station: "_ALL", tz: "America/Chicago" });
 
-  async function updateMetars(){
-    if (!map.hasLayer(metarLayer)) return;
-
-    const minuteKey = toISOZ(curZ).slice(0,12); // yyyymmddHHMM (minute precision)
-    if (metarLastMinuteKey === minuteKey && metarLayer.getLayers().length) return;
-    metarLastMinuteKey = minuteKey;
-
+    // Clear old markers
     metarLayer.clearLayers();
 
-    let rows = [];
-    try {
-      rows = await fetchAsosRows(curZ);
-    } catch (e){
-      console.warn("METAR error:", e);
-      return;
+    for(var i=0;i<rows.length;i++){
+      var o = rows[i] || {};
+      var lat = parseFloat(o.lat);
+      var lon = parseFloat(o.lon);
+      if(!isFinite(lat) || !isFinite(lon)){ continue; }
+
+      var st = (o.station || o.id || "").toString().toUpperCase();
+      var name = (o.name || "").toString();
+      var tmpf = (o.tmpf !== undefined) ? fmtTempF(o.tmpf) : "";
+      var dwpf = (o.dwpf !== undefined) ? fmtTempF(o.dwpf) : "";
+      var w = fmtWind(o.drct, o.sknt);
+      var vis = (o.vsby !== undefined && o.vsby !== "") ? (o.vsby + " mi") : "";
+      var pres = (o.alti !== undefined && o.alti !== "") ? (o.alti + " in") : "";
+      var wx = (o.wxcodes || o.wx || "").toString();
+
+      var htmlPopup =
+        "<div style='font-family:system-ui,Segoe UI,Roboto,Arial; font-size:12px; line-height:1.2;'>"
+        + "<div style='font-weight:700; font-size:13px; margin-bottom:4px;'>" + (st || "METAR") + "</div>"
+        + (name ? ("<div style='opacity:.8; margin-bottom:4px;'>" + name + "</div>") : "")
+        + (tmpf ? ("<div><b>Temp:</b> " + tmpf + (dwpf ? (" &nbsp; <b>Dew:</b> " + dwpf) : "") + "</div>") : "")
+        + (w ? ("<div><b>Wind:</b> " + w + "</div>") : "")
+        + (vis ? ("<div><b>Vis:</b> " + vis + "</div>") : "")
+        + (pres ? ("<div><b>Alt:</b> " + pres + "</div>") : "")
+        + (wx ? ("<div><b>Wx:</b> " + wx + "</div>") : "")
+        + "</div>";
+
+      var marker = L.circleMarker([lat, lon], {
+        radius: 6,
+        color: "#0a4",
+        weight: 2,
+        fillColor: "#4f8",
+        fillOpacity: 0.7
+      }).bindPopup(htmlPopup);
+
+      metarLayer.addLayer(marker);
+
+      // Optional label like your older file (keeps it readable on the map)
+      if(st){
+        var lbl = L.marker([lat, lon], {
+          icon: L.divIcon({
+            className: "metar-label",
+            html: "<div style='background:rgba(255,255,255,.85); padding:2px 6px; border-radius:10px; border:1px solid rgba(0,0,0,.25); font-weight:700; font-size:11px;'>" + st + "</div>",
+            iconSize: [1,1],
+            iconAnchor: [-6, 16]
+          }),
+          interactive: false
+        });
+        metarLayer.addLayer(lbl);
+      }
     }
-
-    const b = map.getBounds();
-    const pad = 0.75;
-    const minLat = b.getSouth() - pad, maxLat = b.getNorth() + pad;
-    const minLon = b.getWest() - pad,  maxLon = b.getEast() + pad;
-
-    let count = 0;
-    for (const o of rows){
-      const lat = safeNum(o.lat);
-      const lon = safeNum(o.lon);
-      if (lat===null || lon===null) continue;
-      if (lat < minLat || lat > maxLat || lon < minLon || lon > maxLon) continue;
-
-      const marker = L.marker([lat, lon], {
-        icon: L.divIcon({
-          className: "metar-icon",
-          html: metarHtml(o),
-          iconSize: [44, 44],
-          iconAnchor: [22, 22]
-        }),
-        interactive: true
-      });
-
-      const st = (o.station || "").toUpperCase();
-      const metarTxt = (o.metar || "").replace(/\s+/g, " ").trim();
-      marker.bindPopup(`<b>${st}</b><br>${metarTxt || "No METAR string"}`);
-      marker.addTo(metarLayer);
-
-      count++;
-      if (count > 300) break; // safety
-    }
+  }catch(err){
+    console.warn("METAR error:", err);
   }
+}
 
+// Update METARs when the layer is turned on, and occasionally as you pan/zoom.
+function hookMetarUpdates(){
+  if(!window.metarLayer || !window.map){ return; }
+
+  // If METAR overlay gets added, draw immediately.
+  map.on("overlayadd", function(e){
+    if(e && e.layer === metarLayer){ updateMetars(); }
+  });
+
+  // Light refresh when the map view changes (but only if layer is on).
+  var metarTimer = null;
+  map.on("moveend zoomend", function(){
+    if(map.hasLayer(metarLayer)){
+      clearTimeout(metarTimer);
+      metarTimer = setTimeout(updateMetars, 250);
+    }
+  });
+}
 function updateAll(){
     setTimeLabel();
     updateRadar();

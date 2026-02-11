@@ -1043,13 +1043,14 @@ setMode("student");
 var radarOpacity = document.getElementById("radarOpacity");
 
 // Remember per-layer opacity so kids can flip products without losing their setting
-var productOpacity = { radar: 0.70, snow: 0.70, temp: 0.70, global: 0.70 };
+var productOpacity = { radar: 0.70, snow: 0.70, temp: 0.70, global: 0.70, goes: 0.70 };
 
 function getActiveProductKey(){
   // Priority: global > snow > temp > radar (matches your product label logic)
   if (typeof era5Apr10Enabled !== "undefined" && (era5Apr10Enabled || era5Apr11Enabled)) return "global";
   if (typeof gfsSnowEnabled !== "undefined" && gfsSnowEnabled) return "snow";
   if (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)) return "temp";
+  if (typeof goesEnabled !== "undefined" && goesEnabled) return "goes";
   return "radar";
 }
 
@@ -1088,6 +1089,8 @@ function applyActiveOpacity(){
     ensureEra5Overlays();
     if (era5Apr10Overlay) era5Apr10Overlay.setOpacity(op);
     if (era5Apr11Overlay) era5Apr11Overlay.setOpacity(op);
+  } else if (key === "goes"){
+    if (goesOverlay && goesEnabled) goesOverlay.setOpacity(op);
   }
 }
 
@@ -1176,7 +1179,29 @@ if (radarOpacity){
 
   
   
-  // Fronts + highs/lows overlay (GeoJSON you upload)
+  
+  // GOES satellite PNG overlay (static image)
+  // Expected file in repo: goes_satellite_image.png (or update GOES_IMAGE_URL below)
+  var GOES_IMAGE_URL = "goes_satellite_image.png";
+  // Leaflet expects [[south, west], [north, east]] (lat/lon)
+  var GOES_BOUNDS = L.latLngBounds(L.latLng(-80.0, -150.0), L.latLng(80.0, -20.0));
+  var goesOverlay = null;
+  var goesEnabled = false;
+
+  function ensureGoesOverlay(){
+    if (!goesOverlay){
+      goesOverlay = L.imageOverlay(GOES_IMAGE_URL, GOES_BOUNDS, { opacity: productOpacity.goes || 0.70, interactive:false });
+    }
+  }
+  function updateGoes(){
+    ensureGoesOverlay();
+    if (goesEnabled){
+      if (!map.hasLayer(goesOverlay)) goesOverlay.addTo(map);
+    } else {
+      if (goesOverlay && map.hasLayer(goesOverlay)) map.removeLayer(goesOverlay);
+    }
+  }
+// Fronts + highs/lows overlay (GeoJSON you upload)
   // Expected file in repo root: fronts.geojson
   var frontsEnabled = false;
   var frontsLayer = null;
@@ -1499,6 +1524,8 @@ var overlays = {};
 
   overlays["GFS Snow Forecast"] = L.layerGroup(); // checkbox only; overlay managed manually
 
+  overlays["GOES Satellite"] = L.layerGroup(); // checkbox only; overlay managed manually
+
   overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
   overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
 
@@ -1682,6 +1709,7 @@ pointToLayer: function(feature, latlng){
     var mainLayers = [
       overlays["Composite Radar (Observed)"],
       overlays["GFS Snow Forecast"],
+      overlays["GOES Satellite"],
       overlays["Global Temp (ERA5) – Apr 10 (21Z)"],
       overlays["Global Temp (ERA5) – Apr 11 (21Z)"],
       hrrrTempLayer
@@ -1703,6 +1731,11 @@ pointToLayer: function(feature, latlng){
       gfsSnowEnabled = false;
       if (gfsSnowOverlay) map.removeLayer(gfsSnowOverlay);
     }
+    if (!map.hasLayer(overlays["GOES Satellite"])){
+      goesEnabled = false;
+      if (goesOverlay) map.removeLayer(goesOverlay);
+    }
+
     if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 10 (21Z)"])){
       era5Apr10Enabled = false;
     }
@@ -1716,6 +1749,7 @@ map.on("overlayadd", function(e){
     enforceSingleOverlay(e.layer);
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
+    if (e.layer === overlays["GOES Satellite"]) { goesEnabled = true; updateGoes(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
       era5Apr10Enabled = true;
       era5Apr11Enabled = false;
@@ -1744,6 +1778,7 @@ map.on("overlayadd", function(e){
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
+    if (e.layer === overlays["GOES Satellite"]) { goesEnabled = false; if (goesOverlay){ map.removeLayer(goesOverlay); } updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) { era5Apr10Enabled = false; updateEra5Global(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) { era5Apr11Enabled = false; updateEra5Global(); updateProductLabel(); }
     if (e.layer === overlays["HRRR Temp (2m)"]) {
@@ -1788,6 +1823,7 @@ map.on("overlayadd", function(e){
   var candidates = [
     { on: (typeof era5Apr10Enabled !== "undefined" && (era5Apr10Enabled || era5Apr11Enabled)), label: "GLOBAL TEMP" },
     { on: (typeof gfsSnowEnabled !== "undefined" && gfsSnowEnabled), label: "SNOW" },
+    { on: (typeof goesEnabled !== "undefined" && goesEnabled), label: "SATELLITE" },
     { on: (typeof ptypeEnabled  !== "undefined" && ptypeEnabled),  label: "P-TYPE" },
     { on: (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)), label: "TEMP" },
     { on: (typeof obsRadarEnabled !== "undefined" && obsRadarEnabled), label: "RADAR" }
@@ -1814,6 +1850,9 @@ map.on("overlayadd", function(e){
       title = "Snow (forecast)";
       if (bar) bar.style.background = "linear-gradient(90deg, #ffffff, #d7ecff, #9ac8ff, #4f7cff)";
       el.style.display = "";
+    } else if (key === "goes"){
+      title = "GOES Satellite";
+      el.style.display = "none";
     } else if (key === "global"){
       title = "Global 2m Temperature (°F) — ERA5";
       if (bar) bar.style.background = "linear-gradient(90deg, #2d004b 0%, #542788 12%, #2166ac 26%, #67a9cf 40%, #d1e5f0 52%, #fff7bc 62%, #fec44f 72%, #f16913 84%, #d73027 100%)";

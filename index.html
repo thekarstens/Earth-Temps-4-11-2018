@@ -148,9 +148,57 @@ html, body { height:100%; margin:0; }
   }
 
 
-/* --- Student/Teacher mode --- */
-body.student-mode .leaflet-control-layers,
-body.student-mode .bstatus { display:none !important; }
+  /* --- Guide collapsed tab --- */
+  #storyTab{
+    position:absolute;
+    top:92px;
+    left:10px;
+    z-index:100000;
+    background:rgba(11,28,45,0.92);
+    color:#fff;
+    font:900 12px/1 Arial, sans-serif;
+    letter-spacing:1px;
+    padding:10px 10px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+    cursor:pointer;
+    display:none;
+    user-select:none;
+  }
+  body.guide-collapsed #storyTab{ display:block; }
+
+  .story-actions{ display:flex; align-items:center; gap:8px; }
+  .story-action{
+    border:1px solid rgba(0,0,0,.25);
+    background:#fff;
+    border-radius:10px;
+    padding:6px 10px;
+    font-weight:900;
+    cursor:pointer;
+  }
+  .story-action.primary{ background:rgba(11,28,45,0.92); color:#fff; border-color: rgba(255,255,255,0.22); }
+
+  /* Guided vs Explore: keep the map clean until Explore */
+  body:not(.explore-mode) .leaflet-control-layers{ display:none !important; }
+  body:not(.explore-mode) .opacity-wrap{ display:none !important; } /* hide opacity unless exploring */
+  body:not(.explore-mode) .map-legend{ display:none !important; }   /* optional: hide legend until needed */
+  body.explore-mode .map-legend{ display:block !important; }
+
+  /* Make guide panel a bit slimmer to preserve map area */
+  #storyPanel{ width:340px; }
+  @media (max-width: 900px){
+    #storyPanel{ width:310px; }
+  }
+  @media (max-width: 640px){
+    #storyPanel{ left:6px; right:6px; width:auto; max-width:none; }
+    #storyTab{ top:70px; }
+  }
+
+  /* Simplify banner footprint */
+  .banner-divider{ display:none; }
+  .banner-bottomline{ padding-top:6px !important; padding-bottom:6px !important; }
+  #modeBtn{ display:none !important; } /* retire student/teacher button */
 
 /* --- Banner: simple classroom layout --- */
 .tvbanner{height:auto; padding:10px 14px; pointer-events:auto;}
@@ -569,9 +617,12 @@ body.student-mode .bstatus { display:none !important; }
 </div>
 <div id="storyPanel" aria-label="Story panel">
   <div class="story-head">
-    <div class="story-title" id="storyTitle">Story</div>
-    <button class="story-close" id="storyCloseBtn" title="Close">✕</button>
+  <div class="story-title" id="storyTitle">Guide</div>
+  <div class="story-actions">
+    <button class="story-action" id="exploreBtn" title="Explore mode">Explore</button>
+    <button class="story-action" id="hideGuideBtn" title="Hide guide">Hide</button>
   </div>
+</div>
   <div class="story-body" id="storyBody">
     <p class="tiny">Loading story…</p>
   </div>
@@ -581,6 +632,7 @@ body.student-mode .bstatus { display:none !important; }
   </div>
   <div class="tiny" id="storyStep"></div>
 </div>
+<div id="storyTab" aria-label="Open guide">GUIDE</div>
 <div id="banner" class="tvbanner">
   <div class="banner-topline" role="banner">
     <div class="topline-center">
@@ -848,15 +900,15 @@ addTown("Omaha", 41.2565, -95.9345);
     setTimeout(function(){ map.invalidateSize(); }, 220);
   }
   function storyClose(){
-    if (!storyPanel) return; storyPanel.classList.remove("story-open");
-    setTimeout(function(){ map.invalidateSize(); }, 220);
-  }
-  function storyToggle(){
-    if (storyPanel.classList.contains("story-open")) storyClose();
-    else if (storyStarted) { storyOpen(); }
-  }
+  collapseGuide();
+  setTimeout(function(){ map.invalidateSize(); }, 220);
+}
+function storyToggle(){
+  if (document.body.classList.contains("guide-collapsed")) openGuide();
+  else collapseGuide();
+}
 
-  function safeLink(url){
+function safeLink(url){
     if (!url) return "";
     return String(url).trim();
   }
@@ -1018,27 +1070,46 @@ addTown("Omaha", 41.2565, -95.9345);
 // Banner actions
 var beginStoryBtn = document.getElementById("beginStoryBtn");
 if (beginStoryBtn) beginStoryBtn.onclick = function(){ storyStarted = true;
-    renderStory(storyIndex, true); };
-// Student/Teacher mode (Student hides layer toggles + status)
-var modeBtn = document.getElementById("modeBtn");
-function setMode(mode){
-  if (mode === "teacher"){
-    document.body.classList.remove("student-mode");
-    if (modeBtn) modeBtn.textContent = "TEACHER";
-  } else {
-    document.body.classList.add("student-mode");
-    if (modeBtn) modeBtn.textContent = "STUDENT";
-  }
+    renderStory(storyIndex, true); openGuide(); };
+// Guided vs Explore mode
+// Guided: story panel controls layers (clean UI)
+// Explore: show layer toggles + optional opacity slider
+function setExploreMode(isExplore){
+  document.body.classList.toggle("explore-mode", !!isExplore);
+  // In explore mode we usually collapse the guide to maximize map area
+  if (isExplore) collapseGuide();
 }
-if (modeBtn){
-  modeBtn.onclick = function(){
-    var isStudent = document.body.classList.contains("student-mode");
-    setMode(isStudent ? "teacher" : "student");
-  };
-}
-// default to STUDENT mode
-setMode("student");
 
+// Guide open/close (collapsible)
+var storyPanelEl = document.getElementById("storyPanel");
+var storyTabEl   = document.getElementById("storyTab");
+var hideGuideBtn = document.getElementById("hideGuideBtn");
+var exploreBtn   = document.getElementById("exploreBtn");
+
+function openGuide(){
+  if (!storyPanelEl) return;
+  storyPanelEl.classList.add("story-open");
+  document.body.classList.remove("guide-collapsed");
+}
+function collapseGuide(){
+  if (!storyPanelEl) return;
+  storyPanelEl.classList.remove("story-open");
+  document.body.classList.add("guide-collapsed");
+}
+if (hideGuideBtn) hideGuideBtn.onclick = function(){ collapseGuide(); };
+if (storyTabEl) storyTabEl.onclick = function(){ openGuide(); };
+
+// Explore toggle
+if (exploreBtn) exploreBtn.onclick = function(){
+  var now = !document.body.classList.contains("explore-mode");
+  setExploreMode(now);
+  if (exploreBtn) exploreBtn.textContent = now ? "Guided" : "Explore";
+  if (!now) openGuide();
+};
+
+// Default: guided mode
+document.body.classList.remove("explore-mode");
+document.body.classList.remove("guide-collapsed");
 // Opacity slider (applies to the currently visible product)
 var radarOpacity = document.getElementById("radarOpacity");
 

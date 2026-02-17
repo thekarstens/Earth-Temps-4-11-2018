@@ -1,4 +1,23 @@
-<!doctype html>
+<!function jetArrowIcon(color, rotateDeg){
+  var svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+         style="transform: rotate(${rotateDeg}deg);">
+      <path d="M12 2 L19 20 L12 16 L5 20 Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>
+    </svg>`;
+  return L.divIcon({ className:"jet-arrow-icon", html: svg, iconSize:[18,18], iconAnchor:[9,9] });
+}
+function bearingDeg(lat1, lon1, lat2, lon2){
+  // bearing FROM point1 TO point2
+  var toRad = Math.PI/180, toDeg = 180/Math.PI;
+  var φ1 = lat1*toRad, φ2 = lat2*toRad;
+  var Δλ = (lon2-lon1)*toRad;
+  var y = Math.sin(Δλ) * Math.cos(φ2);
+  var x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  var θ = Math.atan2(y, x) * toDeg;
+  return (θ + 360) % 360;
+}
+
+doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -606,6 +625,10 @@ html, body { height:100%; margin:0; }
 
   /* Force the layer toggle box to be visible */
   .leaflet-control-layers{ display:block !important; }
+.jet-arrow-icon{
+  background: transparent !important;
+  border: none !important;
+}
 </style>
 </head>
 
@@ -1439,414 +1462,13 @@ if (radarOpacity){
   function frontsOnEach(feature, layer){
     var p = (feature && feature.properties) ? feature.properties : {};
     // Light tooltip for teachers/students
-    var txt = "";
-    if (feature.geometry && feature.geometry.type === "Point"){
-      var sym = (p.symbol || p.pressure || "").toString();
-      var val = (p.value || p.press || p.pressure_mb || p.pressure_hpa || "").toString();
-      txt = (sym ? sym : "Pressure") + (val ? (" " + val) : "");
-    } else {
-      var fr = (p.front || p.type || "").toString();
-      txt = fr ? (fr.charAt(0).toUpperCase() + fr.slice(1) + " front") : "Front";
-    }
-    if (txt && layer && layer.bindTooltip){
-      layer.bindTooltip(txt, { direction:"top", opacity:0.9, sticky:true });
-    }
-  }
-
-  function ensureFronts(){
-    if (frontsLayer || frontsLoaded) return;
-    frontsLoaded = true;
-
-    fetch("fronts.geojson?v=" + Date.now())
-      .then(function(res){
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(function(geo){
-        frontsLayer = L.geoJSON(geo, {
-          pane: "lines",
-          style: frontsLineStyle,
-          pointToLayer: frontsPointToLayer,
-          onEachFeature: frontsOnEach
-        });
-        if (frontsEnabled){ frontsLayer.addTo(map); }
-        buildFrontDecorators();
-      })
-      .catch(function(err){
-        console.warn("Fronts GeoJSON not loaded (expected fronts.geojson in repo root).", err);
-        frontsLayer = null;
-      });
-  }
-
-  function updateFronts(){
-    ensureFronts();
-    if (!frontsLayer) return;
-
-    if (frontsEnabled){
-      if (!map.hasLayer(frontsLayer)) frontsLayer.addTo(map);
-      if (frontsDecorGroup && !map.hasLayer(frontsDecorGroup)) frontsDecorGroup.addTo(map);
-    } else {
-      if (map.hasLayer(frontsLayer)) map.removeLayer(frontsLayer);
-      if (frontsDecorGroup && map.hasLayer(frontsDecorGroup)) map.removeLayer(frontsDecorGroup);
-    }
-  }
-
-// NOTE: Leaflet basemaps (OSM/Carto) are Web Mercator (EPSG:3857).
-// If your ERA5 PNG was rendered in plain lat/lon (Plate Carree), it will look distorted.
-// Use the Colab exporter to "warp to Mercator" and then these bounds will line up.
-var WORLD_BOUNDS = L.latLngBounds(
-  L.latLng(-85.05112878, -180),
-  L.latLng( 85.05112878,  180)
-);
-function ensureEra5Overlays(){
-    if (!era5Apr10Overlay){
-      era5Apr10Overlay = L.imageOverlay(
-        "global/era5_t2m_global_2018-04-10_21Z_F_mercator_overlay.png",
-        WORLD_BOUNDS,
-        { opacity: productOpacity.global || 0.70, interactive:false }
-      );
-    }
-    if (!era5Apr11Overlay){
-      era5Apr11Overlay = L.imageOverlay(
-        "global/era5_t2m_global_2018-04-11_21Z_F_mercator_overlay.png",
-        WORLD_BOUNDS,
-        { opacity: productOpacity.global || 0.70, interactive:false }
-      );
-    }
-  }
-
-  function updateEra5Global(){
-    ensureEra5Overlays();
-
-    if (era5Apr10Enabled){
-      if (!map.hasLayer(era5Apr10Overlay)) era5Apr10Overlay.addTo(map);
-    } else {
-      if (era5Apr10Overlay && map.hasLayer(era5Apr10Overlay)) map.removeLayer(era5Apr10Overlay);
-    }
-
-    if (era5Apr11Enabled){
-      if (!map.hasLayer(era5Apr11Overlay)) era5Apr11Overlay.addTo(map);
-    } else {
-      if (era5Apr11Overlay && map.hasLayer(era5Apr11Overlay)) map.removeLayer(era5Apr11Overlay);
-    }
-  }
-
-  function setCurZToEra5(which){
-    // Sync the banner time controls to the static global images (21Z ~ 4PM Central)
-    if (which === "apr10") curZ = new Date(Date.UTC(2018, 3, 10, 21, 0, 0));
-    if (which === "apr11") curZ = new Date(Date.UTC(2018, 3, 11, 21, 0, 0));
-    clampTime();
-    setTimeLabel();
-  }
-
-  var alertsLayer = L.geoJSON(null, {
-    filter: function(f){
-      const p = (f && f.properties) ? f.properties : {};
-      const ev = String(p.event || p.EVENT || p.headline || p.HEADLINE || "").toLowerCase();
-      const phe = String(p.phenomena || p.PHENOM || p.phenom || "").toLowerCase();
-      const sig = String(p.significance || p.SIG || p.sig || "").toLowerCase();
-
-      // If we have human-readable event text, keep WARNINGS only
-      if (ev){
-        if (ev.includes("statement") || ev.includes("advisory") || ev.includes("watch")) return false;
-        return ev.includes("warning");
-      }
-
-      // If data uses NWS-style codes, keep significance=W (warning)
-      // Examples: phe=sv,to,ff,fl with sig=w
-      if (sig === "w") return true;
-
-      return false;
-    },
-
-    
-    style: function(f){
-      var p = (f && f.properties) ? f.properties : {};
-      var ev = String(p.event || p.EVENT || p.headline || p.phenomena || "").toLowerCase();
-      var phe = String(p.phenomena || p.PHENOM || "").toLowerCase();
-      var sig = String(p.significance || p.SIG || "").toLowerCase();
-
-      // Prefer explicit event text if present
-      var key = ev || (phe && sig ? (phe + "." + sig) : phe || "");
-
-      var stroke = "#333";
-      var fill = "#333";
-
-      var has = function(s){ return key.indexOf(s) !== -1; };
-
-      // Core colors requested
-      if (has("tornado") || phe==="to") { stroke = fill = "#e53935"; }          // red
-      else if (has("severe thunderstorm") || phe==="sv") { stroke = fill = "#fdd835"; } // yellow
-      else if (has("flash flood") || phe==="ff") { stroke = fill = "#00c853"; } // green
-      else if (has("flood") || phe==="fl") { stroke = fill = "#00c853"; }       // green
-      else { stroke = fill = "#42a5f5"; } // fallback blue
-
-      return { color: stroke, weight: 2, opacity: 0.95, fillColor: fill, fillOpacity: 0.22 };
-    },
-    onEachFeature: function(f, layer){
-      var props = f.properties || {};
-      var title = props.event || props.EVENT || props.headline || props.HEADLINE || props.prod_type || props.phenomena || "Warning";
-      layer.bindPopup("<b>" + String(title) + "</b>");
-    }
-  });
-  alertsLayer.addTo(map);
-  var alertsEnabled = true;
-
-  // Layer control (NO extra base layer picker)
-  // State boundary outline handled via GeoJSON (no labels)
-var overlays = {};
-  overlays["Composite Radar (Observed)"] = L.layerGroup(); // placeholder group
-
-  overlays["GFS Snow Forecast"] = L.layerGroup(); // checkbox only; overlay managed manually
-
-  overlays["GOES Satellite"] = L.layerGroup(); // checkbox only; overlay managed manually
-
-  overlays["Global Temp (ERA5) – Apr 10 (21Z)"] = L.layerGroup(); // checkbox only
-  overlays["Global Temp (ERA5) – Apr 11 (21Z)"] = L.layerGroup(); // checkbox only
-
-  overlays["Fronts (Surface Analysis)"] = L.layerGroup(); // checkbox only; loads fronts.geojson
-
-
-
-
-  // HRRR Temp GeoJSON (real layer group; Leaflet handles show/hide)
-  var hrrrTempLayer = L.layerGroup();
-  overlays["HRRR Temp (2m)"] = hrrrTempLayer;
-
-  // --- Jet stream (250 hPa) layers: dots + arrows + isotachs ---
-  // These are loaded from GeoJSON files exported from Colab and stored in the repo.
-  // Expected files (same folder as this index.html):
-  //   ./jet_250mb_points.geojson
-  //   ./jet_250mb_arrows.geojson
-  //   ./jet_250mb_isotachs.geojson
-  var jetPointsLayer = L.layerGroup();
-  var jetArrowsLayer = L.layerGroup();
-  var jetIsotachsLayer = L.layerGroup();
-
-  overlays["Jet Stream (250mb) – Dots"] = jetPointsLayer;
-  overlays["Jet Stream (250mb) – Arrows"] = jetArrowsLayer;
-  overlays["Jet Stream (250mb) – Isotachs"] = jetIsotachsLayer;
-
-
-// --- HRRR TEMP "blob map" styling helpers (Option 1) ---
-var hrrrTempGeo = null;
-var hrrrPoints = []; // [{lat, lon, tF}] for pixel query
-var hrrrCanvas = L.canvas({ padding: 0.5 });
-
-function lerp(a,b,t){ return a + (b-a)*t; }
-function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
-
-// Smooth color ramp for temperature (F)
-function hexToRgb(hex){
-  hex = hex.replace("#","");
-  if (hex.length===3){ hex = hex.split("").map(c=>c+c).join(""); }
-  var n = parseInt(hex,16);
-  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
-}
-function rgbToCss(c){ return "rgb(" + c.r + "," + c.g + "," + c.b + ")"; }
-function mix(c1,c2,t){
-  return { r: Math.round(lerp(c1.r,c2.r,t)), g: Math.round(lerp(c1.g,c2.g,t)), b: Math.round(lerp(c1.b,c2.b,t)) };
-}
-
-// Smooth, WeatherBell-style temperature ramp (°F)
-// Anchors: 20s deep blue -> 30s lighter blue -> 40s dark green -> 50s light green -> 60s yellow -> 70s orange -> 80s red -> 90s magenta
-var TEMP_STOPS = [
-  // WeatherBell-ish temperature ramp (°F): purples -> blues -> cyans -> greens -> yellows -> oranges -> reds -> pinks
-  {t:-30, c:"#3b0a5e"},
-  {t:-20, c:"#54278f"},
-  {t:-10, c:"#1f3f9a"},
-  {t:  0, c:"#08519c"},
-  {t: 10, c:"#3182bd"},
-  {t: 20, c:"#6baed6"},
-  {t: 30, c:"#41b6c4"},
-  {t: 40, c:"#1a9850"},
-  {t: 50, c:"#66bd63"},
-  {t: 60, c:"#d9ef8b"},
-  {t: 70, c:"#fee08b"},
-  {t: 80, c:"#fdae61"},
-  {t: 90, c:"#f46d43"},
-  {t:100, c:"#d73027"},
-  {t:110, c:"#c51b8a"},
-  {t:120, c:"#7a0177"}
-].map(s => ({ t:s.t, c: hexToRgb(s.c) }));
-
-
-
-function tempColor(tF){
-  if (!isFinite(tF)) return "rgba(0,0,0,0)";
-  // Clamp into range
-  tF = clamp(tF, TEMP_STOPS[0].t, TEMP_STOPS[TEMP_STOPS.length-1].t);
-  // Find bracketing stops
-  for (var i=0; i<TEMP_STOPS.length-1; i++){
-    var a = TEMP_STOPS[i], b = TEMP_STOPS[i+1];
-    if (tF >= a.t && tF <= b.t){
-      var tt = (tF - a.t) / (b.t - a.t);
-      // Slight gamma curve to boost contrast around gradients
-      tt = Math.pow(tt, 0.70);
-      return rgbToCss(mix(a.c, b.c, tt));
-    }
-  }
-  return rgbToCss(TEMP_STOPS[TEMP_STOPS.length-1].c);
-}
-
-function radiusForZoom(z){
-  // Bigger dots as you zoom in (kids can “see the field” without tiny gaps).
-  // Tuned for ~3 km HRRR spacing: overlap at mid-zooms, and get BIG at local zooms.
-  if (z <= 4)  return 22;
-  if (z <= 5)  return 26;
-  if (z <= 6)  return 30;
-  if (z <= 7)  return 34;
-  if (z <= 8)  return 40;
-  if (z <= 9)  return 48;
-  if (z <= 10) return 58;
-  if (z <= 11) return 70;
-  return 82; // z>=12
-}
-
-function updateHrrrTempRadius(){
-  if (!hrrrTempGeo) return;
-
-  var z = map.getZoom();
-  var r = radiusForZoom(z);
-
-  hrrrTempGeo.eachLayer(function(layerOrGroup){
-    // Each feature returns a LayerGroup [base, core]
-    if (layerOrGroup && layerOrGroup.eachLayer){
-      layerOrGroup.eachLayer(function(l){
-        if (!l || !l.setRadius) return;
-        var role = (l.options && l.options._role) ? l.options._role : "base";
-        l.setRadius(role === "base" ? r : Math.max(2, Math.round(r * 0.22)));
-      });
-    } else if (layerOrGroup && layerOrGroup.setRadius){
-      layerOrGroup.setRadius(r);
-    }
-  });
-}
-  // Load once (GeoJSON must be in same folder as this index.html)
-  fetch("./hrrr_t2m_20180414_12z_f00.geojson")
-    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function(gj){
-      hrrrTempGeo = L.geoJSON(gj, {
-        // IMPORTANT: convert 0..360 longitudes -> -180..180 for Leaflet
-        coordsToLatLng: function(coords){
-          var lon = coords[0], lat = coords[1];
-          if (lon > 180) lon = lon - 360;
-          return L.latLng(lat, lon);
-        },
-        
-pointToLayer: function(feature, latlng){
-  var t = Number(feature.properties && feature.properties.t_f);
-  var r = radiusForZoom(map.getZoom());
-  var c = tempColor(t);
-
-  // Base "blob" for gradient field
-  var base = L.circleMarker(latlng, {
-    renderer: hrrrCanvas,
-    radius: r,
-    weight: 0,
-    fillColor: c,
-    fillOpacity: 0.35,
-    _role: "base"
-  });
-
-  // Core dot for "sample point" feel (kept subtle so it doesn't look too polka-dot)
-  var core = L.circleMarker(latlng, {
-    renderer: hrrrCanvas,
-    radius: Math.max(2, Math.round(r * 0.18)),
-    weight: 0,
-    fillColor: c,
-    fillOpacity: 0.55,
-    _role: "core"
-  });
-
-  var grp = L.layerGroup([base, core]);
-  // stash references so we can resize + bind tooltips correctly
-  grp._base = base;
-  grp._core = core;
-  if (isFinite(t)) { hrrrPoints.push({lat: latlng.lat, lon: latlng.lng, tF: t}); }
-  return grp;
-},
-        onEachFeature: function(feature, layer){
-          var t = (feature.properties && feature.properties.t_f != null) ? Number(feature.properties.t_f).toFixed(1) : "NA";
-          if (layer && layer._core && layer._core.bindTooltip){
-            layer._core.bindTooltip(t + "°F", { sticky: true });
-          } else if (layer && layer.bindTooltip){
-            layer.bindTooltip(t + "°F", { sticky: true });
-          }
-        }
-      }).addTo(hrrrTempLayer);
-      // If HRRR layer is currently visible, show state boundaries too
-      if (map.hasLayer(hrrrTempLayer)) { addStateLines(); }
-      updateHrrrTempRadius();
-    })
-    .catch(function(err){ console.log("HRRR temp load failed:", err); });
-
-// ---------- Jet stream (250mb) loaders ----------
-var JET_POINTS_URL   = "./jet_250mb_points.geojson";
-var JET_ARROWS_URL   = "./jet_250mb_arrows.geojson";
-var JET_ISOTACHS_URL = "./jet_250mb_isotachs.geojson";
-
-var jetPointsGeo = null;
-var jetArrowsGeo = null;
-var jetIsotachsGeo = null;
-var jetArrowDecor = null;
-
-function lon360to180(lon){
-  lon = Number(lon);
-  return (lon > 180) ? (lon - 360) : lon;
-}
-
-// Simple isotach color ramp (mph or knots) — keep it readable without overwhelming the map
-function jetColorForSpeed(v){
-  // v expected mph; if your GeoJSON is knots, it still works (just shifts bins).
-  if (!isFinite(v)) return "#888";
-  if (v >= 160) return "#7b1fa2";
-  if (v >= 140) return "#c2185b";
-  if (v >= 120) return "#d32f2f";
-  if (v >= 100) return "#f57c00";
-  if (v >= 80)  return "#fbc02d";
-  if (v >= 60)  return "#388e3c";
-  return "#1976d2";
-}
-
-function ensureJetPoints(){
-  if (jetPointsGeo) return;
-  fetch(JET_POINTS_URL + "?v=" + Date.now())
-    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function(gj){
-      jetPointsGeo = L.geoJSON(gj, {
-        coordsToLatLng: function(coords){
-          var lon = lon360to180(coords[0]);
-          return L.latLng(coords[1], lon);
-        },
-        pointToLayer: function(feature, latlng){
-          var p = (feature && feature.properties) ? feature.properties : {};
-          // Prefer mph; fall back to knots; last resort m/s
-          var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
-          var c = jetColorForSpeed(spd);
-
-          return L.circleMarker(latlng, {
-            radius: 4,
-            weight: 1,
-            color: "rgba(0,0,0,0.35)",
-            fillColor: c,
-            fillOpacity: 0.75
-          });
-        },
-        onEachFeature: function(feature, layer){
-          var p = (feature && feature.properties) ? feature.properties : {};
-          var u = Number(p.u_ms);
-          var v = Number(p.v_ms);
-          var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
-
+    var dir = windDirFromUV(u, v);
           var txt = "";
-          if (isFinite(spd)) txt += "Jet: " + spd.toFixed(0) + (isFinite(Number(p.spd_mph)) ? " mph" : (isFinite(Number(p.spd_kt)) ? " kt" : " mph"));
-          if (isFinite(u) && isFinite(v)) txt += "<br><span class='tiny'>u/v: " + u.toFixed(1) + ", " + v.toFixed(1) + " m/s</span>";
-
+          if (isFinite(spd)) txt += "<b>" + spd.toFixed(0) + " mph</b>";
+          if (dir != null) txt += " <span class='tiny'>(from " + dir.toFixed(0) + "°)</span>";
+          if (isFinite(u) && isFinite(v)){
+            txt += "<br><span class='tiny'>u/v: " + u.toFixed(1) + ", " + v.toFixed(1) + " m/s</span>";
+          }
           if (txt && layer.bindTooltip){
             layer.bindTooltip(txt, { sticky:true, direction:"top", opacity:0.95 });
           }
@@ -1870,168 +1492,36 @@ function ensureJetArrows(){
         style: function(feature){
           var p = (feature && feature.properties) ? feature.properties : {};
           var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          if (!isFinite(spd)) spd = Number(p.spd_kt) * 1.15078; // kt -> mph
+          if (!isFinite(spd)) spd = msToMph(Number(p.spd_ms));
           return { color: jetColorForSpeed(spd), weight: 2, opacity: 0.85 };
         },
         onEachFeature: function(feature, layer){
           var p = (feature && feature.properties) ? feature.properties : {};
           var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          if (!isFinite(spd)) spd = Number(p.spd_kt) * 1.15078; // kt -> mph
+          if (!isFinite(spd)) spd = msToMph(Number(p.spd_ms));
           if (isFinite(spd) && layer.bindTooltip){
-            layer.bindTooltip("Jet: " + spd.toFixed(0) + (isFinite(Number(p.spd_mph)) ? " mph" : (isFinite(Number(p.spd_kt)) ? " kt" : " mph")), { sticky:true });
+            layer.bindTooltip("Jet: " + spd.toFixed(0) + " mph", { sticky:true });
           }
-        }
+        
+          // Add a visible arrowhead marker at the end of the segment
+          try{
+            var g = feature && feature.geometry;
+            if (g && g.type === "LineString" && g.coordinates && g.coordinates.length >= 2){
+              var c0 = g.coordinates[0], c1 = g.coordinates[g.coordinates.length-1];
+              var lon0 = lon360to180(c0[0]), lat0 = c0[1];
+              var lon1 = lon360to180(c1[0]), lat1 = c1[1];
+              var brg = bearingDeg(lat0, lon0, lat1, lon1);
+              // SVG points "up" (north). Rotate to bearing.
+              var icon = jetArrowIcon(jetColorForSpeed(spd), brg);
+              L.marker([lat1, lon1], { icon: icon, interactive:false }).addTo(jetArrowsLayer);
+            }
+          }catch(e){}
+}
       }).addTo(jetArrowsLayer);
+      // (Arrowheads handled per-feature with SVG markers for correct color.)
 
-      // Add arrowheads using polylineDecorator if present
-      try{
-        if (typeof L.polylineDecorator === "function"){
-          jetArrowDecor = L.polylineDecorator(jetArrowsGeo, {
-            patterns: [{
-              offset: 12,
-              repeat: 32,
-              symbol: L.Symbol.arrowHead({
-                pixelSize: 8,
-                polygon: true,
-                pathOptions: { stroke: false, fillOpacity: 0.85 }
-              })
-            }]
-          }).addTo(jetArrowsLayer);
-        }
-      }catch(e){
-        console.log("Jet arrow decorator failed:", e);
-      }
-    })
-    .catch(function(err){ console.log("Jet arrows load failed:", err); });
-}
-
-function ensureJetIsotachs(){
-  if (jetIsotachsGeo) return;
-
-  fetch(JET_ISOTACHS_URL + "?v=" + Date.now())
-    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function(gj){
-      jetIsotachsGeo = L.geoJSON(gj, {
-        coordsToLatLng: function(coords){
-          var lon = lon360to180(coords[0]);
-          return L.latLng(coords[1], lon);
-        },
-        style: function(feature){
-          var p = (feature && feature.properties) ? feature.properties : {};
-          // Common keys from geojsoncontour: value / level / contour
-          var val = Number(p.value);
-          if (!isFinite(val)) val = Number(p.level);
-          if (!isFinite(val)) val = Number(p.contour);
-          return { color: jetColorForSpeed(val), weight: 2, opacity: 0.7, dashArray: "4 3" };
-        },
-        onEachFeature: function(feature, layer){
-          var p = (feature && feature.properties) ? feature.properties : {};
-          var val = Number(p.value);
-          if (!isFinite(val)) val = Number(p.level);
-          if (!isFinite(val)) val = Number(p.contour);
-          if (isFinite(val) && layer.bindTooltip){
-            layer.bindTooltip("Isotach: " + val.toFixed(0), { sticky:true, opacity:0.9 });
-          }
-        }
-      }).addTo(jetIsotachsLayer);
-    })
-    .catch(function(err){ console.log("Jet isotachs load failed:", err); });
-}
-
-function updateJetLayersVisibility(){
-  // Called from overlayadd/overlayremove
-  if (map.hasLayer(jetPointsLayer)) ensureJetPoints();
-  if (map.hasLayer(jetArrowsLayer)) ensureJetArrows();
-  if (map.hasLayer(jetIsotachsLayer)) ensureJetIsotachs();
-}
-
-// We'll manage radar ourselves but still expose a checkbox
-  var lc = L.control.layers(null, overlays, { collapsed:false }).addTo(map);
-
-  // Remove any base-layer radio section if Leaflet created it empty
-  setTimeout(function(){
-    var el = document.querySelector(".leaflet-control-layers-base");
-    if (el) el.style.display = "none";
-  }, 50);
-
-  // Reliable layer toggle handling (Leaflet provides e.layer, not e.name)
-  
-  function enforceSingleOverlay(layerAdded){
-    // Only one of the main products at a time (RADAR, SNOW, TEMP).
-    // State lines are driven by TEMP and are not part of this exclusivity.
-    var mainLayers = [
-      overlays["Composite Radar (Observed)"],
-      overlays["GFS Snow Forecast"],
-      overlays["GOES Satellite"],
-      overlays["Global Temp (ERA5) – Apr 10 (21Z)"],
-      overlays["Global Temp (ERA5) – Apr 11 (21Z)"],
-      hrrrTempLayer
-    ];
-
-    for (var i=0;i<mainLayers.length;i++){
-      var LYR = mainLayers[i];
-      if (!LYR) continue;
-      if (LYR === layerAdded) continue;
-      if (map.hasLayer(LYR)) map.removeLayer(LYR);
-    }
-
-    // Also ensure radar/snow overlays clean up if their checkbox was turned off by us
-    if (!map.hasLayer(overlays["Composite Radar (Observed)"])){
-      obsRadarEnabled = false;
-      if (obsRadarOverlay) map.removeLayer(obsRadarOverlay);
-    }
-    if (!map.hasLayer(overlays["GFS Snow Forecast"])){
-      gfsSnowEnabled = false;
-      if (gfsSnowOverlay) map.removeLayer(gfsSnowOverlay);
-    }
-    if (!map.hasLayer(overlays["GOES Satellite"])){
-      goesEnabled = false;
-      if (goesOverlay) map.removeLayer(goesOverlay);
-    }
-
-    if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 10 (21Z)"])){
-      era5Apr10Enabled = false;
-    }
-    if (!map.hasLayer(overlays["Global Temp (ERA5) – Apr 11 (21Z)"])){
-      era5Apr11Enabled = false;
-    }
-    updateEra5Global();
-
-  }
-map.on("overlayadd", function(e){
-    enforceSingleOverlay(e.layer);
-    if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
-    if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer) { updateJetLayersVisibility(); }
-
-    if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
-    if (e.layer === overlays["GOES Satellite"]) { goesEnabled = true; updateGoes(); updateProductLabel(); }
-    if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
-      era5Apr10Enabled = true;
-      era5Apr11Enabled = false;
-      setCurZToEra5("apr10");
-      updateEra5Global();
-      updateProductLabel();
-    }
-    if (e.layer === overlays["Global Temp (ERA5) – Apr 11 (21Z)"]) {
-      era5Apr11Enabled = true;
-      era5Apr10Enabled = false;
-      setCurZToEra5("apr11");
-      updateEra5Global();
-      updateProductLabel();
-    }
-    if (e.layer === overlays["HRRR Temp (2m)"]) {
-      addStateLines();
-      updateProductLabel();
-      updateHrrrTempRadius();
-    }
-    if (e.layer === overlays["Fronts (Surface Analysis)"]) { frontsEnabled = true; updateFronts(); }
-  
-    syncOpacitySliderToActive();
-    applyActiveOpacity();
-    updateLegend();
-});
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
     if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer) { /* nothing to do; Leaflet removed the group */ }

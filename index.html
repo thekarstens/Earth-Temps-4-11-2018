@@ -1459,23 +1459,17 @@ if (radarOpacity){
     return L.marker(latlng, { icon: makeHLIcon(letter), pane: "lines" });
   }
 
-  function frontsOnEach(feature, layer){
-    var p = (feature && feature.properties) ? feature.properties : {};
-    // Light tooltip for teachers/students
-    var dir = windDirFromUV(u, v);
-          var txt = "";
-          if (isFinite(spd)) txt += "<b>" + spd.toFixed(0) + " mph</b>";
-          if (dir != null) txt += " <span class='tiny'>(from " + dir.toFixed(0) + "°)</span>";
-          if (isFinite(u) && isFinite(v)){
-            txt += "<br><span class='tiny'>u/v: " + u.toFixed(1) + ", " + v.toFixed(1) + " m/s</span>";
-          }
-          if (txt && layer.bindTooltip){
-            layer.bindTooltip(txt, { sticky:true, direction:"top", opacity:0.95 });
-          }
-        }
-      }).addTo(jetPointsLayer);
-    })
-    .catch(function(err){ console.log("Jet points load failed:", err); });
+  function frontsOnEach(feature, layer) {
+  // Generic tooltip for fronts/highs/lows (if present in your GeoJSON)
+  const p = feature && feature.properties ? feature.properties : {};
+  const parts = [];
+  if (p.front) parts.push(`Front: ${p.front}`);
+  if (p.type) parts.push(`Type: ${p.type}`);
+  if (p.label) parts.push(p.label);
+  if (p.pressure) parts.push(`P: ${p.pressure}`);
+  if (p.time) parts.push(`Time: ${p.time}`);
+  const txt = parts.length ? parts.join(" • ") : "Feature";
+  layer.bindTooltip(txt, {sticky: true, direction: "top", opacity: 0.9});
 }
 
 function ensureJetArrows(){

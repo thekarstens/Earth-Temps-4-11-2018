@@ -1609,6 +1609,20 @@ var overlays = {};
   var hrrrTempLayer = L.layerGroup();
   overlays["HRRR Temp (2m)"] = hrrrTempLayer;
 
+  // --- Jet stream (250 hPa) layers: dots + arrows + isotachs ---
+  // These are loaded from GeoJSON files exported from Colab and stored in the repo.
+  // Expected files (same folder as this index.html):
+  //   ./jet_250mb_points.geojson
+  //   ./jet_250mb_arrows.geojson
+  //   ./jet_250mb_isotachs.geojson
+  var jetPointsLayer = L.layerGroup();
+  var jetArrowsLayer = L.layerGroup();
+  var jetIsotachsLayer = L.layerGroup();
+
+  overlays["Jet Stream (250mb) – Dots"] = jetPointsLayer;
+  overlays["Jet Stream (250mb) – Arrows"] = jetArrowsLayer;
+  overlays["Jet Stream (250mb) – Isotachs"] = jetIsotachsLayer;
+
 
 // --- HRRR TEMP "blob map" styling helpers (Option 1) ---
 var hrrrTempGeo = null;
@@ -1763,6 +1777,172 @@ pointToLayer: function(feature, latlng){
     })
     .catch(function(err){ console.log("HRRR temp load failed:", err); });
 
+// ---------- Jet stream (250mb) loaders ----------
+var JET_POINTS_URL   = "./jet_250mb_points.geojson";
+var JET_ARROWS_URL   = "./jet_250mb_arrows.geojson";
+var JET_ISOTACHS_URL = "./jet_250mb_isotachs.geojson";
+
+var jetPointsGeo = null;
+var jetArrowsGeo = null;
+var jetIsotachsGeo = null;
+var jetArrowDecor = null;
+
+function lon360to180(lon){
+  lon = Number(lon);
+  return (lon > 180) ? (lon - 360) : lon;
+}
+
+// Simple isotach color ramp (mph or knots) — keep it readable without overwhelming the map
+function jetColorForSpeed(v){
+  // v expected mph; if your GeoJSON is knots, it still works (just shifts bins).
+  if (!isFinite(v)) return "#888";
+  if (v >= 160) return "#7b1fa2";
+  if (v >= 140) return "#c2185b";
+  if (v >= 120) return "#d32f2f";
+  if (v >= 100) return "#f57c00";
+  if (v >= 80)  return "#fbc02d";
+  if (v >= 60)  return "#388e3c";
+  return "#1976d2";
+}
+
+function ensureJetPoints(){
+  if (jetPointsGeo) return;
+  fetch(JET_POINTS_URL + "?v=" + Date.now())
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(gj){
+      jetPointsGeo = L.geoJSON(gj, {
+        coordsToLatLng: function(coords){
+          var lon = lon360to180(coords[0]);
+          return L.latLng(coords[1], lon);
+        },
+        pointToLayer: function(feature, latlng){
+          var p = (feature && feature.properties) ? feature.properties : {};
+          // Prefer mph; fall back to knots; last resort m/s
+          var spd = Number(p.spd_mph);
+          if (!isFinite(spd)) spd = Number(p.spd_kt);
+          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          var c = jetColorForSpeed(spd);
+
+          return L.circleMarker(latlng, {
+            radius: 4,
+            weight: 1,
+            color: "rgba(0,0,0,0.35)",
+            fillColor: c,
+            fillOpacity: 0.75
+          });
+        },
+        onEachFeature: function(feature, layer){
+          var p = (feature && feature.properties) ? feature.properties : {};
+          var u = Number(p.u_ms);
+          var v = Number(p.v_ms);
+          var spd = Number(p.spd_mph);
+          if (!isFinite(spd)) spd = Number(p.spd_kt);
+          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+
+          var txt = "";
+          if (isFinite(spd)) txt += "Jet: " + spd.toFixed(0) + (isFinite(Number(p.spd_mph)) ? " mph" : (isFinite(Number(p.spd_kt)) ? " kt" : " mph"));
+          if (isFinite(u) && isFinite(v)) txt += "<br><span class='tiny'>u/v: " + u.toFixed(1) + ", " + v.toFixed(1) + " m/s</span>";
+
+          if (txt && layer.bindTooltip){
+            layer.bindTooltip(txt, { sticky:true, direction:"top", opacity:0.95 });
+          }
+        }
+      }).addTo(jetPointsLayer);
+    })
+    .catch(function(err){ console.log("Jet points load failed:", err); });
+}
+
+function ensureJetArrows(){
+  if (jetArrowsGeo) return;
+
+  fetch(JET_ARROWS_URL + "?v=" + Date.now())
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(gj){
+      jetArrowsGeo = L.geoJSON(gj, {
+        coordsToLatLng: function(coords){
+          var lon = lon360to180(coords[0]);
+          return L.latLng(coords[1], lon);
+        },
+        style: function(feature){
+          var p = (feature && feature.properties) ? feature.properties : {};
+          var spd = Number(p.spd_mph);
+          if (!isFinite(spd)) spd = Number(p.spd_kt);
+          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          return { color: jetColorForSpeed(spd), weight: 2, opacity: 0.85 };
+        },
+        onEachFeature: function(feature, layer){
+          var p = (feature && feature.properties) ? feature.properties : {};
+          var spd = Number(p.spd_mph);
+          if (!isFinite(spd)) spd = Number(p.spd_kt);
+          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          if (isFinite(spd) && layer.bindTooltip){
+            layer.bindTooltip("Jet: " + spd.toFixed(0) + (isFinite(Number(p.spd_mph)) ? " mph" : (isFinite(Number(p.spd_kt)) ? " kt" : " mph")), { sticky:true });
+          }
+        }
+      }).addTo(jetArrowsLayer);
+
+      // Add arrowheads using polylineDecorator if present
+      try{
+        if (typeof L.polylineDecorator === "function"){
+          jetArrowDecor = L.polylineDecorator(jetArrowsGeo, {
+            patterns: [{
+              offset: 12,
+              repeat: 32,
+              symbol: L.Symbol.arrowHead({
+                pixelSize: 8,
+                polygon: true,
+                pathOptions: { stroke: false, fillOpacity: 0.85 }
+              })
+            }]
+          }).addTo(jetArrowsLayer);
+        }
+      }catch(e){
+        console.log("Jet arrow decorator failed:", e);
+      }
+    })
+    .catch(function(err){ console.log("Jet arrows load failed:", err); });
+}
+
+function ensureJetIsotachs(){
+  if (jetIsotachsGeo) return;
+
+  fetch(JET_ISOTACHS_URL + "?v=" + Date.now())
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(gj){
+      jetIsotachsGeo = L.geoJSON(gj, {
+        coordsToLatLng: function(coords){
+          var lon = lon360to180(coords[0]);
+          return L.latLng(coords[1], lon);
+        },
+        style: function(feature){
+          var p = (feature && feature.properties) ? feature.properties : {};
+          // Common keys from geojsoncontour: value / level / contour
+          var val = Number(p.value);
+          if (!isFinite(val)) val = Number(p.level);
+          if (!isFinite(val)) val = Number(p.contour);
+          return { color: jetColorForSpeed(val), weight: 2, opacity: 0.7, dashArray: "4 3" };
+        },
+        onEachFeature: function(feature, layer){
+          var p = (feature && feature.properties) ? feature.properties : {};
+          var val = Number(p.value);
+          if (!isFinite(val)) val = Number(p.level);
+          if (!isFinite(val)) val = Number(p.contour);
+          if (isFinite(val) && layer.bindTooltip){
+            layer.bindTooltip("Isotach: " + val.toFixed(0), { sticky:true, opacity:0.9 });
+          }
+        }
+      }).addTo(jetIsotachsLayer);
+    })
+    .catch(function(err){ console.log("Jet isotachs load failed:", err); });
+}
+
+function updateJetLayersVisibility(){
+  // Called from overlayadd/overlayremove
+  if (map.hasLayer(jetPointsLayer)) ensureJetPoints();
+  if (map.hasLayer(jetArrowsLayer)) ensureJetArrows();
+  if (map.hasLayer(jetIsotachsLayer)) ensureJetIsotachs();
+}
+
 // We'll manage radar ourselves but still expose a checkbox
   var lc = L.control.layers(null, overlays, { collapsed:false }).addTo(map);
 
@@ -1819,6 +1999,8 @@ pointToLayer: function(feature, latlng){
 map.on("overlayadd", function(e){
     enforceSingleOverlay(e.layer);
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
+    if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer) { updateJetLayersVisibility(); }
+
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
     if (e.layer === overlays["GOES Satellite"]) { goesEnabled = true; updateGoes(); updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) {
@@ -1848,6 +2030,8 @@ map.on("overlayadd", function(e){
 });
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
+    if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer) { /* nothing to do; Leaflet removed the group */ }
+
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
     if (e.layer === overlays["GOES Satellite"]) { goesEnabled = false; if (goesOverlay){ map.removeLayer(goesOverlay); } updateProductLabel(); }
     if (e.layer === overlays["Global Temp (ERA5) – Apr 10 (21Z)"]) { era5Apr10Enabled = false; updateEra5Global(); updateProductLabel(); }

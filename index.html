@@ -180,10 +180,10 @@ html, body { height:100%; margin:0; }
   .story-action.primary{ background:rgba(11,28,45,0.92); color:#fff; border-color: rgba(255,255,255,0.22); }
 
   /* Guided vs Explore: keep the map clean until Explore */
-  body:not(.explore-mode) .leaflet-control-layers{ display:none !important; }
-  body:not(.explore-mode) .opacity-wrap{ display:none !important; } /* hide opacity unless exploring */
-  body:not(.explore-mode) .map-legend{ display:none !important; }   /* optional: hide legend until needed */
-  body.explore-mode .map-legend{ display:block !important; }
+  /* allow layer control always */
+  /* opacity always available */
+  /* legend always available */
+  /* legend always available */
 
   /* Make guide panel a bit slimmer to preserve map area */
   #storyPanel{ width:340px; }
@@ -603,6 +603,9 @@ html, body { height:100%; margin:0; }
     letter-spacing: 0.2px;
   }
 
+
+  /* Force the layer toggle box to be visible */
+  .leaflet-control-layers{ display:block !important; }
 </style>
 </head>
 
@@ -1100,6 +1103,7 @@ if (hideGuideBtn) hideGuideBtn.onclick = function(){ collapseGuide(); };
 if (storyTabEl) storyTabEl.onclick = function(){ openGuide(); };
 
 // Explore toggle
+if (exploreBtn) exploreBtn.textContent = "Guided";
 if (exploreBtn) exploreBtn.onclick = function(){
   var now = !document.body.classList.contains("explore-mode");
   setExploreMode(now);
@@ -1108,7 +1112,7 @@ if (exploreBtn) exploreBtn.onclick = function(){
 };
 
 // Default: guided mode
-document.body.classList.remove("explore-mode");
+document.body.classList.add("explore-mode");
 document.body.classList.remove("guide-collapsed");
 // Opacity slider (applies to the currently visible product)
 var radarOpacity = document.getElementById("radarOpacity");

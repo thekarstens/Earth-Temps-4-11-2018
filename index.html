@@ -1264,8 +1264,7 @@ if (radarOpacity){
       if (!bestLayer) return;
 
       var props = (bestLayer.feature && bestLayer.feature.properties) ? bestLayer.feature.properties : {};
-      var spd = Number(props.spd_mph);
-      if (!isFinite(spd)) spd = Number(props.speed_mph);
+      var spd = getJetSpeedMph(props);
       var u = Number(props.u);
       var v = Number(props.v);
 
@@ -1869,6 +1868,31 @@ function jetColorForSpeed(mph){
   return "#b0b0b0";                   // light gray
 }
 
+// Normalize jet speed to MPH from whatever fields exist in your GeoJSON exports.
+// Supported property names: speed_mph, spd_mph, speed_kt, spd_kt, speed_ms, spd_ms (m/s)
+function getJetSpeedMph(p){
+  p = p || {};
+  var mph = Number(p.speed_mph);
+  if (!isFinite(mph)) mph = Number(p.spd_mph);
+
+  // Knots -> mph
+  if (!isFinite(mph)){
+    var kt = Number(p.speed_kt);
+    if (!isFinite(kt)) kt = Number(p.spd_kt);
+    if (isFinite(kt)) mph = kt * 1.15078;
+  }
+
+  // m/s -> mph
+  if (!isFinite(mph)){
+    var ms = Number(p.speed_ms);
+    if (!isFinite(ms)) ms = Number(p.spd_ms);
+    if (isFinite(ms)) mph = ms * 2.23694;
+  }
+  return mph;
+}
+
+
+
 
 function metDirFromUV(u, v){
   // meteorological direction (degrees FROM which the wind blows)
@@ -1881,51 +1905,113 @@ function metDirFromUV(u, v){
 
 
 function ensureJetPoints(){
-  if (jetPointsGeo) return;
+  // We load once, then dynamically render a decluttered subset based on zoom.
+  if (window._jetPointsLoaded) { renderJetPoints(); return; }
+  window._jetPointsLoaded = true;
+
   fetch(JET_POINTS_URL + "?v=" + Date.now())
     .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function(gj){
-      jetPointsGeo = L.geoJSON(gj, {
-        coordsToLatLng: function(coords){
-          var lon = lon360to180(coords[0]);
-          return L.latLng(coords[1], lon);
-        },
-        pointToLayer: function(feature, latlng){
-          var p = (feature && feature.properties) ? feature.properties : {};
-          // Prefer mph; fall back to knots; last resort m/s
-          var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
-          var c = jetColorForSpeed(spd);
-
-          return L.circleMarker(latlng, {
-            radius: 4,
-            weight: 1,
-            color: "rgba(0,0,0,0.35)",
-            fillColor: c,
-            fillOpacity: 0.75
-          });
-        },
-        onEachFeature: function(feature, layer){
-          var p = (feature && feature.properties) ? feature.properties : {};
-          var u = Number(p.u_ms);
-          var v = Number(p.v_ms);
-          var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
-
-          var txt = "";
-          if (isFinite(spd)) txt += "Jet: " + spd.toFixed(0) + (isFinite(Number(p.spd_mph)) ? " mph" : (isFinite(Number(p.spd_kt)) ? " kt" : " mph"));
-          if (isFinite(u) && isFinite(v)) txt += "<br><span class='tiny'>u/v: " + u.toFixed(1) + ", " + v.toFixed(1) + " m/s</span>";
-
-          if (txt && layer.bindTooltip){
-            layer.bindTooltip(txt, { sticky:true, direction:"top", opacity:0.95 });
-          }
-        }
-      }).addTo(jetPointsLayer);
+      // Cache features for fast re-rendering
+      window._jetPointsFeatures = (gj && gj.features) ? gj.features : [];
+      renderJetPoints();
     })
     .catch(function(err){ console.log("Jet points load failed:", err); });
 }
+
+// Render a *subset* of the jet dots so it looks sharp (not overwhelming).
+// Strategy:
+//  - Convert speed to MPH using getJetSpeedMph()
+//  - Apply a minimum speed threshold that relaxes as you zoom in
+//  - Grid-thin points: keep the FASTEST point per grid cell (highlights streaks)
+function renderJetPoints(){
+  if (!window._jetPointsFeatures) return;
+
+  // Only render if the layer is currently toggled on
+  if (!map.hasLayer(jetPointsLayer)) return;
+
+  jetPointsLayer.clearLayers();
+
+  var z = map.getZoom();
+
+  // Thresholds (mph): show only the jet streak core when zoomed out
+  var minMph = 120;
+  if (z >= 6) minMph = 100;
+  if (z >= 7) minMph = 85;
+  if (z >= 8) minMph = 70;
+  if (z >= 9) minMph = 55;
+  if (z >= 10) minMph = 40;
+  if (z >= 11) minMph = 25;
+
+  // Grid size (degrees). Smaller cells as you zoom in.
+  // (These values are tuned to "feel right" over CONUS on tablets/laptops.)
+  var cell = 6.0;
+  if (z >= 5)  cell = 4.0;
+  if (z >= 6)  cell = 2.5;
+  if (z >= 7)  cell = 1.6;
+  if (z >= 8)  cell = 1.0;
+  if (z >= 9)  cell = 0.65;
+  if (z >= 10) cell = 0.45;
+  if (z >= 11) cell = 0.30;
+
+  // Dot radius: subtle when zoomed out, more readable when zoomed in.
+  var r = 2.5;
+  if (z >= 6) r = 3.0;
+  if (z >= 7) r = 3.2;
+  if (z >= 8) r = 3.6;
+  if (z >= 9) r = 4.0;
+  if (z >= 10) r = 4.6;
+  if (z >= 11) r = 5.2;
+
+  // Keep the fastest point per grid cell
+  var bestByCell = Object.create(null);
+
+  for (var i=0; i<window._jetPointsFeatures.length; i++){
+    var f = window._jetPointsFeatures[i];
+    if (!f || !f.geometry || f.geometry.type !== "Point") continue;
+    var coords = f.geometry.coordinates;
+    if (!coords || coords.length < 2) continue;
+
+    var lon = lon360to180(coords[0]);
+    var lat = Number(coords[1]);
+    if (!isFinite(lat) || !isFinite(lon)) continue;
+
+    var p = f.properties || {};
+    var mph = getJetSpeedMph(p);
+    if (!isFinite(mph) || mph < minMph) continue;
+
+    // Grid key
+    var gx = Math.floor(lon / cell);
+    var gy = Math.floor(lat / cell);
+    var key = gx + ":" + gy;
+
+    var prev = bestByCell[key];
+    if (!prev || mph > prev.mph){
+      bestByCell[key] = { lat: lat, lon: lon, mph: mph, props: p };
+    }
+  }
+
+  // Now draw markers
+  for (var key in bestByCell){
+    var pt = bestByCell[key];
+    var c = jetColorForSpeed(pt.mph);
+
+    var m = L.circleMarker([pt.lat, pt.lon], {
+      radius: r,
+      weight: 1,
+      color: "rgba(0,0,0,0.35)",
+      fillColor: c,
+      fillOpacity: 0.80
+    });
+
+    // Tooltip (keep it short so it feels like a "probe")
+    if (m.bindTooltip){
+      m.bindTooltip("Jet: " + pt.mph.toFixed(0) + " mph", { sticky:true, direction:"top", opacity:0.95 });
+    }
+    m.addTo(jetPointsLayer);
+  }
+}
+
 
 function ensureJetArrows(){
   if (jetArrowsGeo) return;
@@ -1940,18 +2026,14 @@ function ensureJetArrows(){
         },
         style: function(feature){
           var p = (feature && feature.properties) ? feature.properties : {};
-          var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          var spd = getJetSpeedMph(p);
           return { color: jetColorForSpeed(spd), weight: 2, opacity: 0.85 };
         },
         onEachFeature: function(feature, layer){
           var p = (feature && feature.properties) ? feature.properties : {};
-          var spd = Number(p.spd_mph);
-          if (!isFinite(spd)) spd = Number(p.spd_kt);
-          if (!isFinite(spd)) spd = Number(p.spd_ms) * 2.23694;
+          var spd = getJetSpeedMph(p);
           if (isFinite(spd) && layer.bindTooltip){
-            layer.bindTooltip("Jet: " + spd.toFixed(0) + (isFinite(Number(p.spd_mph)) ? " mph" : (isFinite(Number(p.spd_kt)) ? " kt" : " mph")), { sticky:true });
+            layer.bindTooltip("Jet: " + spd.toFixed(0) + " mph", { sticky:true });
           }
         }
       }).addTo(jetArrowsLayer);
@@ -2131,6 +2213,13 @@ map.on("overlayadd", function(e){
     syncOpacitySliderToActive();
     applyActiveOpacity();
     updateLegend();
+  });
+
+  // Re-render jet dots as you zoom/pan (keeps them decluttered and readable)
+  map.on("zoomend moveend", function(){
+    if (map.hasLayer(jetPointsLayer) && window._jetPointsLoaded){
+      renderJetPoints();
+    }
   });
 
   // Ensure radar checkbox starts ON

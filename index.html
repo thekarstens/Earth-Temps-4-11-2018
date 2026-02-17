@@ -606,6 +606,21 @@ html, body { height:100%; margin:0; }
 
   /* Force the layer toggle box to be visible */
   .leaflet-control-layers{ display:block !important; }
+
+/* Jet probe tooltip styling (match HRRR probe vibe) */
+.leaflet-tooltip.jet-tooltip{
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+.leaflet-tooltip.jet-tooltip:before{ border-top-color: rgba(15,23,42,0.92) !important; }
+.jet-tooltip .jt-title{ font-weight: 800; font-size: 14px; letter-spacing: .3px; }
+.jet-tooltip .jt-sub{ font-size: 12px; opacity: 0.9; margin-top: 2px; }
+
 </style>
 </head>
 
@@ -775,7 +790,7 @@ html, body { height:100%; margin:0; }
         usStatesLayer = L.geoJSON(geojson, {
           pane: "lines",
           style: function(){
-            return { color:"#000000", weight: 1.2, opacity: 0.95, fillOpacity: 0 };
+            return { color:"#000000", weight: 1.2, opacity: 1.0, fillOpacity: 0 };
           }
         });
         // If user already has HRRR temp on, add immediately
@@ -1208,34 +1223,74 @@ if (radarOpacity){
     var lp = document.getElementById("legendPop");
     if (lp) lp.classList.add("hidden");
 
-    // Pixel query (click) for HRRR temp: show nearest grid point value
-    if (!map.hasLayer(hrrrTempLayer)) return;
-    if (!hrrrPoints || hrrrPoints.length === 0) return;
-
-    var lat = e.latlng.lat, lon = e.latlng.lng;
-    var best = null, bestD = Infinity;
-    var coslat = Math.cos(lat * Math.PI/180);
-
-    for (var i=0; i<hrrrPoints.length; i++){
-      var p = hrrrPoints[i];
-      var dlat = (p.lat - lat);
-      var dlon = (p.lon - lon) * coslat;
-      var d2 = dlat*dlat + dlon*dlon;
-      if (d2 < bestD){ bestD = d2; best = p; }
+    // 1) HRRR temp probe (if that layer is active)
+    if (map.hasLayer(hrrrTempLayer) && Array.isArray(hrrrPoints) && hrrrPoints.length){
+      var best = null, bestDist = Infinity;
+      for (var i=0; i<hrrrPoints.length; i++){
+        var p = hrrrPoints[i];
+        var d = L.latLng(e.latlng.lat, e.latlng.lng).distanceTo([p.lat, p.lon]);
+        if (d < bestDist){
+          bestDist = d;
+          best = p;
+        }
+      }
+      if (!best) return;
+      var val = (best.value != null) ? Number(best.value).toFixed(0) : "—";
+      L.popup({
+        className: "hrrr-popup",
+        closeButton: true,
+        autoPan: true,
+        offset: [0, -10]
+      })
+      .setLatLng([best.lat, best.lon])
+      .setContent(val + "°F")
+      .openOn(map);
+      return;
     }
-    if (!best) return;
 
-    var val = Math.round(best.tF); // whole degrees
-    L.popup({
-      className: "hrrr-popup",
-      autoPan: false,
-      closeButton: false,
-      pane: "popupPane",
-      offset: [0, -10]
-    })
-    .setLatLng([best.lat, best.lon])
-    .setContent(val + "°F")
-    .openOn(map);
+    // 2) Jet dots probe (match the HRRR probe look/feel)
+    if (map.hasLayer(jetPointsLayer)){
+      var bestLayer = null, bestD = Infinity;
+      jetPointsLayer.eachLayer(function(layer){
+        if (!layer || !layer.getLatLng) return;
+        var ll = layer.getLatLng();
+        var d = e.latlng.distanceTo(ll);
+        if (d < bestD){
+          bestD = d;
+          bestLayer = layer;
+        }
+      });
+
+      if (!bestLayer) return;
+
+      var props = (bestLayer.feature && bestLayer.feature.properties) ? bestLayer.feature.properties : {};
+      var spd = Number(props.spd_mph);
+      if (!isFinite(spd)) spd = Number(props.speed_mph);
+      var u = Number(props.u);
+      var v = Number(props.v);
+
+      var dirTxt = "";
+      if (isFinite(u) && isFinite(v)){
+        var dir = metDirFromUV(u, v);
+        dirTxt = " • Dir " + dir.toFixed(0) + "°";
+      }
+
+      var html = '<div class="hrrr-popup">' +
+                 '<div class="hrrr-popup-title">Jet (250 mb)</div>' +
+                 '<div class="hrrr-popup-row"><span>Speed</span><span class="hrrr-popup-value">' + (isFinite(spd) ? spd.toFixed(0) : "—") + ' mph</span></div>' +
+                 (dirTxt ? '<div class="hrrr-popup-row"><span>Direction</span><span class="hrrr-popup-value">' + dirTxt.replace(" • Dir ","") + '</span></div>' : '') +
+                 '</div>';
+
+      L.popup({
+        className: "hrrr-popup",
+        closeButton: true,
+        autoPan: true,
+        offset: [0, -10]
+      })
+      .setLatLng(bestLayer.getLatLng())
+      .setContent(html)
+      .openOn(map);
+    }
   });
 
   // ---------- Layers ----------
@@ -1400,7 +1455,7 @@ if (radarOpacity){
     var w = parseFloat(p.width);
     if (!isFinite(w)) w = 3;
 
-    return { color: color, weight: w, opacity: 0.95 };
+    return { color: color, weight: w, lineCap:'round', lineJoin:'round', opacity: 0.95 };
   }
 
   function makeHLIcon(letter){
@@ -1798,19 +1853,32 @@ function lon360to180(lon){
 
 // Simple isotach color ramp (mph or knots) — keep it readable without overwhelming the map
 function jetColorForSpeed(mph){
-  // Discrete "WeatherBell-ish" jet isotach palette (mph)
-  // tweak thresholds as desired
+  // Discrete "WeatherBell-style-ish" palette for jet speeds (mph)
+  // (kept discrete on purpose: no gradients)
   if (!isFinite(mph)) return "#ffffff";
-  if (mph >= 180) return "#f2f2f2";   // near-white (extreme)
-  if (mph >= 160) return "#b266ff";   // violet
-  if (mph >= 140) return "#ff00aa";   // magenta
-  if (mph >= 120) return "#ff0033";   // red
-  if (mph >= 100) return "#ff7a00";   // orange
-  if (mph >= 80)  return "#ffd200";   // yellow
-  if (mph >= 60)  return "#4cff4c";   // green
-  if (mph >= 40)  return "#00b7ff";   // light blue
-  return "#2a6cff";                   // blue
+  if (mph >= 200) return "#7a00ff";   // deep purple (extreme)
+  if (mph >= 180) return "#b300ff";   // purple
+  if (mph >= 160) return "#ff00c8";   // magenta
+  if (mph >= 140) return "#ff0040";   // hot red
+  if (mph >= 120) return "#ff5a00";   // orange-red
+  if (mph >= 100) return "#ffb000";   // amber
+  if (mph >=  80) return "#fff000";   // yellow
+  if (mph >=  60) return "#52ff52";   // bright green
+  if (mph >=  40) return "#00d7ff";   // cyan
+  if (mph >=  20) return "#0080ff";   // blue
+  return "#b0b0b0";                   // light gray
 }
+
+
+function metDirFromUV(u, v){
+  // meteorological direction (degrees FROM which the wind blows)
+  // u,v in same units
+  var ang = Math.atan2(v, u) * 180/Math.PI; // math angle of vector TO
+  var dir = (270 - ang) % 360;
+  if (dir < 0) dir += 360;
+  return dir;
+}
+
 
 function ensureJetPoints(){
   if (jetPointsGeo) return;
@@ -1891,18 +1959,28 @@ function ensureJetArrows(){
       // Add arrowheads using polylineDecorator if present
       try{
         if (typeof L.polylineDecorator === "function"){
-          jetArrowDecor = L.polylineDecorator(jetArrowsGeo, {
-            patterns: [{
-              offset: 12,
-              repeat: 32,
-              symbol: L.Symbol.arrowHead({
-                pixelSize: 8,
-                polygon: true,
-                pathOptions: { stroke: false, fillOpacity: 0.85 }
-              })
-            }]
+          
+        // Add arrowheads per-feature so they inherit the same color as the line.
+        // (One decorator per polyline -> avoids the "everything looks the same" problem.)
+        jetArrowDecors = [];
+        jetArrowsGeo.eachLayer(function(line){
+          var col = (line.options && line.options.color) ? line.options.color : "#00d7ff";
+          var dec = L.polylineDecorator(line, {
+            patterns: [
+              {
+                offset: "60%",
+                repeat: 0,
+                symbol: L.Symbol.arrowHead({
+                  pixelSize: 12,
+                  polygon: true,
+                  pathOptions: { stroke: false, fillOpacity: 0.95, color: col, fillColor: col }
+                })
+              }
+            ]
           }).addTo(jetArrowsLayer);
-        }
+          jetArrowDecors.push(dec);
+        });
+}
       }catch(e){
         console.log("Jet arrow decorator failed:", e);
       }
@@ -1936,7 +2014,7 @@ function ensureJetIsotachs(){
           if (!isFinite(val)) val = Number(p.level);
           if (!isFinite(val)) val = Number(p.contour);
           if (isFinite(val) && layer.bindTooltip){
-            layer.bindTooltip("Isotach: " + val.toFixed(0), { sticky:true, opacity:0.9 });
+            layer.bindTooltip("Isotach: " + val.toFixed(0), { className:'jet-tooltip', sticky:true, opacity:0.98, direction:'top', offset:[0,-6] });
           }
         }
       }).addTo(jetIsotachsLayer);

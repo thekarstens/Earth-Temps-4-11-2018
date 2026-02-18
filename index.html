@@ -7,6 +7,9 @@
 
 <link rel="stylesheet" href="./leaflet.css"/>
 <script src="./leaflet.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.css"/>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
@@ -1675,7 +1678,15 @@ var overlays = {};
   //   ./jet_250mb_isotachs.geojson
   var jetPointsLayer = L.layerGroup();
   var jetArrowsLayer = L.layerGroup();
-  var jetIsotachsLayer = L.layerGroup();
+  var jetIs
+
+  // --- Jet stream (250mb) animated particles (leaflet-velocity) ---
+  // Expected file (same folder as this index.html):
+  //   ./narr_jet_250mb_20180414_18z_leaflet_velocity.json
+  var jetParticlesLayer = L.layerGroup(); // checkbox only; actual layer managed manually
+  overlays["Jet Stream (250mb) – Particles"] = jetParticlesLayer;
+
+otachsLayer = L.layerGroup();
 
   overlays["Jet Stream (250mb) – Dots"] = jetPointsLayer;
   overlays["Jet Stream (250mb) – Arrows"] = jetArrowsLayer;
@@ -2104,11 +2115,93 @@ function ensureJetIsotachs(){
     .catch(function(err){ console.log("Jet isotachs load failed:", err); });
 }
 
+function ensureJetParticles(){
+  if (window._jetVelocityLayer) return;
+
+  // Make sure the plugin loaded
+  if (!L || typeof L.velocityLayer !== "function") {
+    console.warn("leaflet-velocity not loaded; add leaflet-velocity.js and leaflet-velocity.css");
+    return;
+  }
+
+  var JET_PARTICLES_URL = "./narr_jet_250mb_20180414_18z_leaflet_velocity.json";
+
+  fetch(JET_PARTICLES_URL + "?v=" + Date.now())
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(arr){
+      // Our exporter sometimes writes dy as +0.5 even though the grid scans north->south.
+      // leaflet-velocity expects la1 at the *north* edge with a *negative* dy for that scan order.
+      // Fix dy sign (no data reversal needed for our files).
+      if (Array.isArray(arr)) {
+        arr.forEach(function(rec){
+          if (rec && rec.header && typeof rec.header.dy === "number") {
+            rec.header.dy = -Math.abs(rec.header.dy);
+          }
+        });
+      }
+
+      // Convert to mph for the legend + color scale (plugin still uses m/s internally, so we keep raw,
+      // but we map colors by speed bucket based on m/s -> mph).
+      function msToMph(ms){ return ms * 2.236936; }
+
+      // 0..50 mph color ramp: blue -> dark blue -> green -> yellow -> red
+      function colorForMph(m){
+        if (m < 5)  return "rgba(80,160,255,0.85)";
+        if (m < 15) return "rgba(0,110,255,0.85)";
+        if (m < 25) return "rgba(0,200,120,0.85)";
+        if (m < 35) return "rgba(255,220,70,0.90)";
+        return "rgba(255,60,60,0.95)";
+      }
+
+      // Build a cheap color scale array for leaflet-velocity (expects array of css colors)
+      // We'll pass 0..50 mph mapped to 0..22.35 m/s.
+      var maxMph = 50;
+      var steps = 256;
+      var scale = [];
+      for (var i=0;i<steps;i++){
+        var mph = (i/(steps-1))*maxMph;
+        scale.push(colorForMph(mph));
+      }
+
+      window._jetVelocityLayer = L.velocityLayer({
+        data: arr,
+        // Visual tuning
+        opacity: 0.75,
+        velocityScale: 0.012,   // smaller -> slower particles, better readability
+        particleMultiplier: 1/300, // fewer particles = cleaner (tune if needed)
+        lineWidth: 1.6,
+        frameRate: 18,
+
+        // Display / legend
+        displayValues: true,
+        displayOptions: {
+          position: 'bottomleft',
+          emptyString: 'No wind data',
+          // Show mph in the readout
+          displayPosition: 'bottomleft',
+          speedUnit: 'mph',
+          speedFormatter: function(v){ return (msToMph(v)).toFixed(0); }
+        },
+        minVelocity: 0,
+        maxVelocity: maxMph/2.236936, // mph -> m/s
+        colorScale: scale
+      });
+
+      // If checkbox already on, add it now
+      if (map && map.hasLayer(jetParticlesLayer)) {
+        window._jetVelocityLayer.addTo(map);
+      }
+    })
+    .catch(function(err){ console.log("Jet particles load failed:", err); });
+}
+
+
 function updateJetLayersVisibility(){
   // Called from overlayadd/overlayremove
   if (map.hasLayer(jetPointsLayer)) ensureJetPoints();
   if (map.hasLayer(jetArrowsLayer)) ensureJetArrows();
   if (map.hasLayer(jetIsotachsLayer)) ensureJetIsotachs();
+  if (map.hasLayer(jetParticlesLayer)) ensureJetParticles();
 }
 
 // We'll manage radar ourselves but still expose a checkbox
@@ -2167,7 +2260,8 @@ function updateJetLayersVisibility(){
 map.on("overlayadd", function(e){
     enforceSingleOverlay(e.layer);
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = true; updateRadar(); updateProductLabel(); }
-    if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer) { updateJetLayersVisibility(); }
+    if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer || e.layer === jetParticlesLayer) { updateJetLayersVisibility(); }
+    if (e.layer === jetParticlesLayer) { if (window._jetVelocityLayer && !map.hasLayer(window._jetVelocityLayer)) window._jetVelocityLayer.addTo(map); }
 
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = true; updateGfsSnow(); updateProductLabel(); }
     if (e.layer === overlays["GOES Satellite"]) { goesEnabled = true; updateGoes(); updateProductLabel(); }
@@ -2199,6 +2293,7 @@ map.on("overlayadd", function(e){
   map.on("overlayremove", function(e){
     if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = false; if (obsRadarOverlay){ map.removeLayer(obsRadarOverlay); } updateProductLabel(); }
     if (e.layer === jetPointsLayer || e.layer === jetArrowsLayer || e.layer === jetIsotachsLayer) { /* nothing to do; Leaflet removed the group */ }
+    if (e.layer === jetParticlesLayer) { if (window._jetVelocityLayer && map.hasLayer(window._jetVelocityLayer)) map.removeLayer(window._jetVelocityLayer); }
 
     if (e.layer === overlays["GFS Snow Forecast"]) { gfsSnowEnabled = false; if (gfsSnowOverlay){ map.removeLayer(gfsSnowOverlay); } updateProductLabel(); }
     if (e.layer === overlays["GOES Satellite"]) { goesEnabled = false; if (goesOverlay){ map.removeLayer(goesOverlay); } updateProductLabel(); }

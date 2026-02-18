@@ -6,7 +6,124 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="./leaflet.css"/>
-<script src="./leaflet.js"></script>
+<script src="./leaflet.js">
+  // ---- Jet animation init ----
+  let jetFrames = [];
+  let jetFrameIndex = 0;
+  let jetAnimTimer = null;
+
+  async function initJetAnim(){
+    jetFrames = await buildJetFrames();
+    // Update slider bounds if present
+    const s = document.getElementById("jetAnimSlider");
+    if (s){
+      s.min = 0;
+      s.max = Math.max(0, jetFrames.length - 1);
+      s.step = 1;
+      s.value = 0;
+    }
+    setJetAnimStatus(jetFrames.length ? `Jet animation: ${jetFrames.length} frames ready` : "Jet animation: no frames found (using snapshot)");
+  }
+
+  function getJetFrameUrl(i){
+    if (!jetFrames.length) return null;
+    const u = jetFrames[i]?.url;
+    if (!u) return null;
+    return u;
+  }
+
+  async function loadJetFrame(i){
+    if (!jetFrames.length) return;
+    jetFrameIndex = Math.max(0, Math.min(i, jetFrames.length-1));
+    const url = getJetFrameUrl(jetFrameIndex);
+    if (!url) return;
+
+    setJetAnimStatus(`Loading frame ${jetFrameIndex+1}/${jetFrames.length}: ${url}`);
+    console.log("[JetAnim] fetch", url);
+
+    try{
+      const data = await (await fetch(url + "?v=" + Date.now(), {cache:"no-store"})).json();
+
+      // Remove previous jet layer if exists
+      if (window._jetVelocityLayer && map.hasLayer(window._jetVelocityLayer)){
+        map.removeLayer(window._jetVelocityLayer);
+      }
+
+      window._jetVelocityLayer = L.velocityLayer({
+        data: data,
+        displayValues: false,
+        velocityType: "Jet Stream (250mb)",
+        maxVelocity: 70,
+        velocityScale: 0.01,
+        particleAge: 60,
+        particleMultiplier: 1/220,
+        lineWidth: 1.2,
+        opacity: 0.45,
+        colorScale: ["#d7f3ff","#6ec6ff","#1e88e5","#00c853","#ffd600","#ff6d00","#e53935","#8e24aa"]
+      });
+
+      // Only add if the "Particles" overlay is ON, otherwise keep it ready but hidden
+      if (window._jetParticlesOverlayEnabled){
+        window._jetVelocityLayer.addTo(map);
+      }
+
+      const label = jetFrames[jetFrameIndex]?.label || "";
+      const t = data?.[0]?.header?.refTime || "";
+      setJetAnimStatus(`Frame ${jetFrameIndex+1}/${jetFrames.length}: ${label} ${t}`.trim());
+
+    }catch(e){
+      console.error("[JetAnim] frame load failed:", e);
+      setJetAnimStatus(`Frame load failed (see console): ${url}`);
+    }
+  }
+
+  function jetAnimPlay(){
+    if (jetAnimTimer || !jetFrames.length) return;
+    jetAnimTimer = setInterval(() => {
+      jetFrameIndex = (jetFrameIndex + 1) % jetFrames.length;
+      const s = document.getElementById("jetAnimSlider");
+      if (s) s.value = jetFrameIndex;
+      loadJetFrame(jetFrameIndex);
+    }, 1200);
+    setJetAnimStatus("Playing…");
+  }
+
+  function jetAnimPause(){
+    if (jetAnimTimer){
+      clearInterval(jetAnimTimer);
+      jetAnimTimer = null;
+      setJetAnimStatus("Paused.");
+    }
+  }
+
+  // Hook up slider + buttons (if present)
+  function hookJetAnimUI(){
+    const s = document.getElementById("jetAnimSlider");
+    if (s){
+      s.addEventListener("input", (ev) => {
+        jetAnimPause();
+        loadJetFrame(parseInt(ev.target.value, 10) || 0);
+      });
+    }
+    const btnPlay = document.getElementById("jetAnimPlay");
+    const btnPause = document.getElementById("jetAnimPause");
+    if (btnPlay) btnPlay.addEventListener("click", () => { jetAnimPlay(); });
+    if (btnPause) btnPause.addEventListener("click", () => { jetAnimPause(); });
+  }
+
+  // Run after page load
+  (async function(){
+    try{
+      hookJetAnimUI();
+      await initJetAnim();
+      // Preload first frame once (it will only show if particles overlay is enabled)
+      if (jetFrames.length) await loadJetFrame(0);
+    }catch(e){
+      console.warn("[JetAnim] init failed:", e);
+    }
+  })();
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
@@ -686,7 +803,11 @@ html, body { height:100%; margin:0; }
   <div class="jet-anim-row">
     <button class="jet-anim-btn" id="jetPlayBtn" title="Play/Pause">▶</button>
     <input type="range" id="jetFrameSlider" min="0" max="0" value="0" step="1" />
-    <div class="jet-anim-time" id="jetFrameLabel">—</div>
+    <div class="jet-anim-time" id="jetFrameLabel">—
+  <div style="font:600 12px/1.2 Arial, sans-serif; opacity:.85; margin-top:6px;">
+    <span id="jetAnimStatus">Jet animation: waiting…</span>
+  </div>
+</div>
   </div>
   <div class="jet-anim-hint">Tip: turn on <b>Jet Stream (250mb) – Particles</b> in the Layers box, then scrub or hit Play.</div>
 </div>
@@ -2656,6 +2777,63 @@ function updateAlerts(){
   updateAll();
 
 })();
-</script>
-</body>
+
+  // ============================
+  // Jet animation: frame discovery
+  // GitHub Pages cannot list directories, so we use one of:
+  //  (1) jet_anim/frames.json  (recommended)  -> explicit list of frame files
+  //  (2) fallback pattern-based list (may not match your filenames)
+  //
+  // frames.json format (array of strings OR array of objects):
+  //   ["jet_anim/file1.json", "jet_anim/file2.json", ...]
+  //   OR [{"url":"jet_anim/file1.json","label":"Apr 14 00Z"}, ...]
+  // ============================
+  const JET_MANIFEST_URL = (typeof JET_ANIM_DIR !== "undefined" ? (JET_ANIM_DIR + "/frames.json") : "jet_anim/frames.json");
+
+  async function buildJetFrames(){
+    // 1) Try manifest
+    try{
+      const r = await fetch(JET_MANIFEST_URL + "?v=" + Date.now(), {cache:"no-store"});
+      if (r.ok){
+        const mj = await r.json();
+        const out = [];
+        for (const item of mj){
+          if (typeof item === "string") out.push({url:item, label:item.split("/").pop()});
+          else if (item && typeof item.url === "string") out.push({url:item.url, label: item.label || item.url.split("/").pop()});
+        }
+        if (out.length){
+          console.log("[JetAnim] Using frames.json manifest:", out.length, "frames");
+          return out;
+        }
+      } else {
+        console.warn("[JetAnim] frames.json not found (HTTP " + r.status + "), using fallback pattern.");
+      }
+    }catch(e){
+      console.warn("[JetAnim] frames.json load failed, using fallback pattern.", e);
+    }
+
+    // 2) Fallback pattern list (edit these if your filenames differ)
+    const dir = (typeof JET_ANIM_DIR !== "undefined") ? JET_ANIM_DIR : "jet_anim";
+    const prefix = (typeof JET_FRAME_PREFIX !== "undefined") ? JET_FRAME_PREFIX : "narr_jet_250mb_";
+    const suffix = (typeof JET_FRAME_SUFFIX !== "undefined") ? JET_FRAME_SUFFIX : "_leaflet_velocity.json";
+    const stepHours = (typeof JET_STEP_HOURS !== "undefined") ? JET_STEP_HOURS : 3;
+
+    // Default: Apr 14 00Z..24Z every 3h (9 frames)
+    const day = "20180414";
+    const frames = [];
+    for (let hh=0; hh<=24; hh+=stepHours){
+      const HH = String(hh).padStart(2,"0");
+      const url = `${dir}/${prefix}${day}_${HH}Z${suffix}`;
+      frames.push({url, label:`Apr 14 ${HH}Z`});
+    }
+    console.log("[JetAnim] Using fallback pattern frames:", frames);
+    return frames;
+  }
+
+  function setJetAnimStatus(msg){
+    const el = document.getElementById("jetAnimStatus");
+    if (el) el.textContent = msg;
+  }
+
+</script></body>
 </html>

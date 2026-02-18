@@ -2132,7 +2132,39 @@ function ensureJetParticles(){
 
       // Color ramp: blue -> dark blue -> green -> yellow -> red (0..50 mph)
       function msToMph(ms){ return ms * 2.23694; }
-      function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
+      
+  // --- Fix for Leaflet-Velocity grid origin ---
+  // Leaflet-Velocity expects header.la1 to be the SOUTH edge (min lat) with positive dy.
+  // Our JSON was exported "north-first" (la1 = north edge). So we:
+  // 1) set la1 to LAT_MIN
+  // 2) keep dy positive
+  // 3) flip the data rows so row 0 corresponds to the south edge.
+  function normalizeVelocityNorthFirstToSouthFirst(records, latMin){
+    if (!Array.isArray(records) || records.length < 2) return records;
+
+    for (const rec of records){
+      if (!rec || !rec.header || !Array.isArray(rec.data)) continue;
+      const nx = rec.header.nx, ny = rec.header.ny;
+      if (!nx || !ny || rec.data.length !== nx*ny) continue;
+
+      // Patch header to south-first convention
+      rec.header.la1 = latMin;
+      rec.header.dy = Math.abs(rec.header.dy || 0);
+
+      // Flip rows (north-first -> south-first)
+      const flipped = new Array(nx*ny);
+      for (let y=0; y<ny; y++){
+        const srcRow = (ny - 1 - y) * nx;
+        const dstRow = y * nx;
+        for (let x=0; x<nx; x++){
+          flipped[dstRow + x] = rec.data[srcRow + x];
+        }
+      }
+      rec.data = flipped;
+    }
+    return records;
+  }
+function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
       function lerp(a,b,t){ return a + (b-a)*t; }
       function lerpColor(c1,c2,t){
         return [

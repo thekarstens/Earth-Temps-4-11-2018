@@ -2113,11 +2113,11 @@ function ensureJetIsotachs(){
 }
 
 function ensureJetParticles(){
-  // Loads ./narr_jet_250mb_20180414_18z_leaflet_velocity.json and creates a Leaflet-Velocity layer.
+  // Loads ./narr_jet_250mb_20180414_18z_NA_leaflet_velocity.json and creates a Leaflet-Velocity layer.
   // NOTE: This requires leaflet-velocity.min.js/css to be present locally.
   if (window._jetVelocityLayer) return;
 
-  var url = "./narr_jet_250mb_20180414_18z_leaflet_velocity.json?v=" + Date.now();
+  var url = "./narr_jet_250mb_20180414_18z_NA_leaflet_velocity.json?v=" + Date.now();
   fetch(url)
     .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function(data){

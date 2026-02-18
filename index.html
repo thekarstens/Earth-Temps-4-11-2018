@@ -2162,7 +2162,7 @@ function ensureJetParticles(){
 
       window._jetVelocityLayer = L.velocityLayer({
         data: data,
-        maxVelocity: 80,         // m/s scale inside plugin; just affects legend scaling
+        maxVelocity: 22.35,         // m/s scale inside plugin; just affects legend scaling
         velocityScale: 0.010,
         particleAge: 60,
         lineWidth: 1,
@@ -2174,10 +2174,7 @@ function ensureJetParticles(){
           speedUnit: "mph",
           emptyString: "No data"
         },
-        colorScale: function(ms){
-          return colorForMph(msToMph(ms));
-        }
-      });
+        colorScale: ["#bfe9ff","#3aa0ff","#005bff","#00c853","#ffd400","#ff2d2d"]});
 
       // If the checkbox is already on, attach immediately
       if (typeof map !== "undefined" && map && map.hasLayer(jetParticlesLayer)){

@@ -6,7 +6,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="./leaflet.css"/>
-<script src="./leaflet.js"></script>
+<script src="./leaflet.js">
+
+  function resolveJetFrameUrl(u){
+    if (!u) return u;
+    const dir = (typeof JET_ANIM_DIR !== "undefined") ? JET_ANIM_DIR : "jet_anim";
+    if (!u.includes("/") && !u.startsWith("http")) return dir + "/" + u;
+    return u;
+  }
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
@@ -2289,25 +2298,38 @@ async function loadJetFramesManifest(){
 }
 
 function normalizeVelocityIfNeeded(data){
-  // Your new NA export is SOUTH-first dy>0 already.
-  // But keep safety: if header implies impossible lat range (e.g. 60..100), fix dy sign.
+  // Leaflet-velocity expects the grid to be NORTH-first (la1 = north edge) with dy < 0.
+  // Many of our exports are SOUTH-first (la1 = south edge) with dy > 0.
+  // This normalizes header only (no data reordering needed for leaflet-velocity).
   try{
-    var h = data && data[0] && data[0].header;
-    if (h){
+    if (!Array.isArray(data)) return data;
+    data.forEach(function(rec){
+      if (!rec || !rec.header) return;
+      var h = rec.header;
       var la1 = Number(h.la1), dy = Number(h.dy), ny = Number(h.ny);
-      if (Number.isFinite(la1) && Number.isFinite(dy) && Number.isFinite(ny)){
-        var lat2 = la1 + dy*(ny-1);
-        if (lat2 > 90 || lat2 < -90){
-          // flip dy
-          data.forEach(function(rec){
-            if (rec && rec.header && typeof rec.header.dy === "number"){
-              rec.header.dy = -rec.header.dy;
-            }
-          });
+      if (Number.isFinite(la1) && Number.isFinite(dy) && Number.isFinite(ny) && ny > 1){
+        var lat2 = la1 + dy*(ny-1); // opposite edge implied by header
+        // If dy is positive, la1 is south edge; convert to north-first
+        if (dy > 0){
+          h.la1 = lat2;   // move origin to north edge
+          h.dy  = -dy;    // step southward
+        }
+        // If lat2 is still out of bounds, force within [-90,90] by swapping
+        var newLat2 = Number(h.la1) + Number(h.dy)*(ny-1);
+        if (newLat2 > 90 || newLat2 < -90){
+          // swap edges
+          h.la1 = newLat2;
+          h.dy  = -Number(h.dy);
         }
       }
-    }
-  }catch(e){}
+
+      // Normalize longitude origin into [-180, 180] if it's 0..360
+      var lo1 = Number(h.lo1);
+      if (Number.isFinite(lo1) && lo1 > 180) h.lo1 = lo1 - 360;
+    });
+  }catch(e){
+    console.warn("[JetAnim] normalizeVelocityIfNeeded failed:", e);
+  }
   return data;
 }
 

@@ -1247,7 +1247,7 @@ if (radarOpacity){
         }
       }
       if (!best) return;
-      var val = (best.value != null) ? Number(best.value).toFixed(0) : "—";
+      var val = (best.tF != null) ? Number(best.tF).toFixed(0) : "—";
       L.popup({
         className: "hrrr-popup",
         closeButton: true,
@@ -1257,10 +1257,35 @@ if (radarOpacity){
       .setLatLng([best.lat, best.lon])
       .setContent(val + "°F")
       .openOn(map);
-      return;
+      
     }
 
-    // 2) Jet dots probe (match the HRRR probe look/feel)
+    // 2) EURO snow probe (if that layer is active) — uses the same popup style
+    if (map.hasLayer(euroSnowLayer) && Array.isArray(euroPoints) && euroPoints.length){
+      var bestE = null, bestED = Infinity;
+      for (var k=0; k<euroPoints.length; k++){
+        var ep = euroPoints[k];
+        var dd = L.latLng(e.latlng.lat, e.latlng.lng).distanceTo([ep.lat, ep.lon]);
+        if (dd < bestED){ bestED = dd; bestE = ep; }
+      }
+      if (bestE){
+        var inches = (bestE.value != null) ? Number(bestE.value) : NaN;
+        var txt = isFinite(inches) ? inches.toFixed(2) + '"' : "—";
+        L.popup({
+          className: "hrrr-popup",
+          closeButton: true,
+          autoPan: true,
+          offset: [0, -10]
+        })
+        .setLatLng([bestE.lat, bestE.lon])
+        .setContent('EURO 36h Snow: <span class="mono">' + txt + '</span>')
+        .openOn(map);
+        return;
+      }
+    }
+
+    // 3) Jet dots probe (match the HRRR probe look/feel)
+// 3) Jet dots probe (match the HRRR probe look/feel)
     if (map.hasLayer(jetPointsLayer)){
       var bestLayer = null, bestD = Infinity;
       jetPointsLayer.eachLayer(function(layer){
@@ -1677,6 +1702,73 @@ var overlays = {};
 
   // HRRR Temp GeoJSON (real layer group; Leaflet handles show/hide)
   var hrrrTempLayer = L.layerGroup();
+  // ---------- EURO Snow (36h) from NetCDF-derived files ----------
+  // Upload these files to your repo (same folder as this index.html):
+  //  - ecmwf_sf_liq_in_2018041412_f036_grid_stride10.json
+  //  - ecmwf_sf_liq_in_2018041412_f036_contours.geojson
+  //  - (optional) ecmwf_sf_liq_in_2018041412_f036_overlay.png + bounds json if you want TV-style raster overlay
+  var euroSnowLayer = L.layerGroup();
+  var euroSnowContoursLayer = L.layerGroup();
+  overlays["EURO Snow (36h)"] = euroSnowLayer;
+  overlays["EURO Snow Contours"] = euroSnowContoursLayer;
+
+  var euroPoints = []; // [{lat, lon, value}] where value = inches liquid-equivalent
+
+  function euroSnowColor(v){
+    // simple TV-ish ramp (inches liquid eq)
+    if (v >= 6) return "#7b1fa2";
+    if (v >= 4) return "#d81b60";
+    if (v >= 3) return "#f06292";
+    if (v >= 2) return "#ff8a65";
+    if (v >= 1) return "#ffd54f";
+    if (v >= 0.5) return "#a5d6a7";
+    if (v >= 0.25) return "#4fc3f7";
+    if (v >= 0.1) return "#81d4fa";
+    return "transparent";
+  }
+
+  // Load dots grid (for probe + optional dot display)
+  fetch("./ecmwf_sf_liq_in_2018041412_f036_grid_stride10.json")
+    .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(function(j){
+      euroPoints = Array.isArray(j.points) ? j.points : [];
+      // build a lightweight dot layer (only shows values > 0.1")
+      euroSnowLayer.clearLayers();
+      euroPoints.forEach(function(p){
+        var v = Number(p.value);
+        if (!isFinite(v) || v <= 0.1) return;
+        L.circleMarker([p.lat, p.lon], {
+          radius: 3,
+          color: "rgba(0,0,0,0.25)",
+          weight: 0.5,
+          fillColor: euroSnowColor(v),
+          fillOpacity: 0.70,
+          opacity: 0.35
+        }).addTo(euroSnowLayer);
+      });
+    })
+    .catch(function(err){
+      console.warn("EURO snow grid not loaded:", err);
+    });
+
+  // Load contour lines (clean TV look)
+  fetch("./ecmwf_sf_liq_in_2018041412_f036_contours.geojson")
+    .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(function(gj){
+      euroSnowContoursLayer.clearLayers();
+      L.geoJSON(gj, {
+        pane: "lines",
+        style: function(f){
+          var lvl = (f && f.properties) ? Number(f.properties.level_in) : NaN;
+          var w = (lvl >= 3) ? 2.2 : (lvl >= 1 ? 1.6 : 1.1);
+          return { color: "rgba(0,0,0,0.65)", weight: w, opacity: 0.85 };
+        }
+      }).addTo(euroSnowContoursLayer);
+    })
+    .catch(function(err){
+      console.warn("EURO snow contours not loaded:", err);
+    });
+
   overlays["HRRR Temp (2m)"] = hrrrTempLayer;
 
   // --- Jet stream (250 hPa) layers: dots + arrows + isotachs ---

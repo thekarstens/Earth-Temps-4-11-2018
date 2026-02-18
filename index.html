@@ -621,6 +621,52 @@ html, body { height:100%; margin:0; }
 .jet-tooltip .jt-title{ font-weight: 800; font-size: 14px; letter-spacing: .3px; }
 .jet-tooltip .jt-sub{ font-size: 12px; opacity: 0.9; margin-top: 2px; }
 
+
+/* --- Jet animation panel (Windy-style slider) --- */
+.jet-anim-panel{
+  position:absolute;
+  left:10px;
+  bottom:12px;
+  z-index:100000;
+  background:rgba(255,255,255,0.95);
+  border:1px solid rgba(0,0,0,0.18);
+  border-radius:14px;
+  padding:10px 12px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.18);
+  min-width: 360px;
+  max-width: calc(100vw - 24px);
+}
+.jet-anim-title{
+  font:900 12px/1 Arial, sans-serif;
+  letter-spacing:.8px;
+  color:#0b1c2d;
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.jet-anim-row{ display:flex; align-items:center; gap:10px; }
+.jet-anim-btn{
+  width:42px; height:34px;
+  border-radius:12px;
+  font:900 14px/1 Arial, sans-serif;
+}
+#jetFrameSlider{ flex:1 1 auto; min-width:140px; }
+.jet-anim-time{
+  min-width: 150px;
+  text-align:right;
+  font:900 12px/1.2 Arial, sans-serif;
+  color:#111;
+  white-space:nowrap;
+}
+.jet-anim-hint{
+  margin-top:6px;
+  font:800 11px/1.2 Arial, sans-serif;
+  opacity:.75;
+}
+@media (max-width: 640px){
+  .jet-anim-panel{ left:6px; right:6px; min-width: unset; }
+  .jet-anim-time{ display:none; }
+}
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -635,6 +681,17 @@ html, body { height:100%; margin:0; }
     <span class="leg-mini-bar" aria-hidden="true"></span>
     <span class="leg-mini-label">Heavy</span>
   </div>
+
+<div id="jetAnimPanel" class="jet-anim-panel" title="Jet stream time controls">
+  <div class="jet-anim-title">JET STREAM (250mb)</div>
+  <div class="jet-anim-row">
+    <button class="btn jet-anim-btn" id="jetPlayBtn" aria-label="Play/Pause jet animation">▶</button>
+    <input id="jetFrameSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Jet frame slider"/>
+    <div class="jet-anim-time" id="jetTimeLabel">—</div>
+  </div>
+  <div class="jet-anim-hint" id="jetAnimHint">Tip: upload frames to <span class="mono">jet_anim/</span></div>
+</div>
+
 </div>
 <div id="storyPanel" aria-label="Story panel">
   <div class="story-head">
@@ -1214,6 +1271,71 @@ if (radarOpacity){
   loadStory();
 
 
+
+  // --- Jet animation UI wiring (Option 2) ---
+  setJetUi();
+  var jetSlider = document.getElementById("jetFrameSlider");
+  var jetPlayBtn = document.getElementById("jetPlayBtn");
+
+  function jetLoadAndShow(){
+    // Only load if the particles overlay is on
+    if (map.hasLayer(jetParticlesLayer)){
+      ensureJetParticles(); // uses current frame index (or snapshot)
+      // If velocity layer already created, ensure it's in the group
+      if (window._jetVelocityLayer && !jetParticlesLayer.hasLayer(window._jetVelocityLayer)){
+        jetParticlesLayer.addLayer(window._jetVelocityLayer);
+      }
+    }
+  }
+
+  function jetSetPlaying(isPlay){
+    if (!jetPlayBtn) return;
+    jetPlayBtn.textContent = isPlay ? "⏸" : "▶";
+    jetPlayBtn.setAttribute("aria-label", isPlay ? "Pause jet animation" : "Play jet animation");
+  }
+
+  function jetStop(){
+    if (jetTimer) { clearInterval(jetTimer); jetTimer = null; }
+    jetSetPlaying(false);
+  }
+
+  function jetPlay(){
+    if (jetTimer) return;
+    jetSetPlaying(true);
+    jetTimer = setInterval(function(){
+      if (!jetFrames || !jetFrames.length) return;
+      jetFrameIndex = (jetFrameIndex + 1) % jetFrames.length;
+      if (jetSlider) jetSlider.value = jetFrameIndex;
+      jetLoadAndShow();
+    }, 1200);
+  }
+
+  if (jetSlider){
+    jetSlider.addEventListener("input", function(){
+      jetFrameIndex = parseInt(jetSlider.value || "0", 10) || 0;
+      jetStop();
+      jetLoadAndShow();
+    });
+  }
+  if (jetPlayBtn){
+    jetPlayBtn.addEventListener("click", function(){
+      if (jetTimer) jetStop();
+      else jetPlay();
+    });
+  }
+
+  // When the particles overlay is toggled, load the current frame immediately
+  map.on("overlayadd", function(e){
+    if (e.layer === jetParticlesLayer){
+      jetLoadAndShow();
+    }
+  });
+  map.on("overlayremove", function(e){
+    if (e.layer === jetParticlesLayer){
+      jetStop();
+    }
+  });
+
   map.on("zoomend", function(){
     var zl = document.getElementById("zoomLabel"); if (zl) zl.textContent = map.getZoom();
   });
@@ -1690,6 +1812,76 @@ var overlays = {};
   // Jet stream particles (Windy-style) from Leaflet-Velocity JSON (same folder)
   var jetParticlesLayer = L.layerGroup();
   overlays["Jet Stream (250mb) – Particles"] = jetParticlesLayer;
+
+
+  // --- Jet animation (Option 2) ---
+  // Put frame JSON files in: ./jet_anim/
+  // Naming pattern (edit if your Colab output differs):
+  //   narr_jet_250mb_YYYYMMDD_HHz_leaflet_velocity.json   (lowercase z recommended)
+  var JET_ANIM_DIR = "jet_anim";
+  var JET_FRAME_PREFIX = "narr_jet_250mb_";
+  var JET_FRAME_SUFFIX = "_leaflet_velocity.json";
+  var JET_STEP_HOURS = 3;
+
+  // Time range for the jet animation frames (change as you like)
+  var JET_START_Z = new Date(Date.UTC(2018, 3, 14, 0, 0, 0));   // Apr 14 00Z
+  var JET_END_Z   = new Date(Date.UTC(2018, 3, 15, 0, 0, 0));   // Apr 15 00Z
+
+  // Fallback single-frame file (works even without animation frames)
+  var JET_SNAPSHOT_FILE = "./narr_jet_250mb_20180414_18z_NA_leaflet_velocity.json";
+
+  var jetFrames = [];
+  var jetFrameIndex = 0;
+  var jetTimer = null;
+
+  function buildJetFrameList(){
+    jetFrames = [];
+    var t = new Date(JET_START_Z.getTime());
+    while (t.getTime() <= JET_END_Z.getTime()){
+      var y = t.getUTCFullYear();
+      var m = pad2(t.getUTCMonth()+1);
+      var d = pad2(t.getUTCDate());
+      var hh = pad2(t.getUTCHours());
+      // lowercase z for filename consistency
+      var name = JET_FRAME_PREFIX + (""+y+m+d) + "_" + hh + "z" + JET_FRAME_SUFFIX;
+      jetFrames.push(JET_ANIM_DIR + "/" + name);
+      t = new Date(t.getTime() + JET_STEP_HOURS*3600*1000);
+    }
+  }
+
+  function formatZShort(d){
+    // "Apr 14 18Z"
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return months[d.getUTCMonth()] + " " + d.getUTCDate() + " " + pad2(d.getUTCHours()) + "Z";
+  }
+
+  function jetDateForIndex(i){
+    var t = new Date(JET_START_Z.getTime() + i*JET_STEP_HOURS*3600*1000);
+    return t;
+  }
+
+  function setJetUi(){
+    var slider = document.getElementById("jetFrameSlider");
+    var lab = document.getElementById("jetTimeLabel");
+    if (!slider) return;
+    buildJetFrameList();
+    slider.min = 0;
+    slider.max = Math.max(0, jetFrames.length-1);
+    slider.value = jetFrameIndex;
+    if (lab){
+      if (jetFrames.length){
+        lab.textContent = formatZShort(jetDateForIndex(jetFrameIndex));
+      } else {
+        lab.textContent = "—";
+      }
+    }
+  }
+
+  function setJetHint(msg){
+    var el = document.getElementById("jetAnimHint");
+    if (el) el.textContent = msg;
+  }
+
 // --- HRRR TEMP "blob map" styling helpers (Option 1) ---
 var hrrrTempGeo = null;
 var hrrrPoints = []; // [{lat, lon, tF}] for pixel query
@@ -2112,93 +2304,95 @@ function ensureJetIsotachs(){
     .catch(function(err){ console.log("Jet isotachs load failed:", err); });
 }
 
-function ensureJetParticles(){
-  // Loads ./narr_jet_250mb_20180414_18z_NA_leaflet_velocity.json and creates a Leaflet-Velocity layer.
-  // NOTE: This requires leaflet-velocity.min.js/css to be present locally.
-  if (window._jetVelocityLayer) return;
+function ensureJetParticles(urlOverride){
+  // Loads a Leaflet-Velocity layer from a JSON file.
+  // If urlOverride is omitted, uses the current animation frame (if present) or the snapshot file.
+  // NOTE: Requires leaflet-velocity.min.js/css locally.
+  var url = urlOverride;
 
-  var url = "./narr_jet_250mb_20180414_18z_NA_leaflet_velocity.json?v=" + Date.now();
+  if (!url){
+    if (jetFrames && jetFrames.length){
+      url = "./" + jetFrames[jetFrameIndex];
+    } else {
+      url = JET_SNAPSHOT_FILE;
+    }
+  }
+
+  // Cache-bust to ensure GitHub Pages updates show up
+  url = url + (url.indexOf("?") === -1 ? "?v=" : "&v=") + Date.now();
+
+  // If already loaded this exact URL (ignoring cache-bust), do nothing
+  try{
+    var bare = url.split("?")[0];
+    if (window._jetVelocityLayer && window._jetVelocityUrlBare === bare) return;
+  }catch(e){}
+
+  // Remove any existing velocity layer instance
+  try{
+    if (window._jetVelocityLayer){
+      if (map && map.hasLayer(window._jetVelocityLayer)) map.removeLayer(window._jetVelocityLayer);
+      // If it was nested in the group, remove safely
+      if (jetParticlesLayer && jetParticlesLayer.removeLayer) jetParticlesLayer.removeLayer(window._jetVelocityLayer);
+    }
+  }catch(e){}
+
+  var bareUrl = url.split("?")[0];
+
   fetch(url)
     .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(function(data){
-      // Normalize header so the grid is oriented correctly for Leaflet-Velocity.
-      // Your exported files are north-first; Leaflet-Velocity expects la1=north and dy negative.
+      // Normalize: make dy positive and make la1 SOUTH edge by flipping rows.
+      // This is the proven "it finally works" fix for these files.
       try{
-        data.forEach(function(rec){
-          if (!rec.header) return;
-          if (typeof rec.header.dy === "number") rec.header.dy = -Math.abs(rec.header.dy);
-        });
+        // Find lat bounds from header
+        var h = (data && data[0] && data[0].header) ? data[0].header : null;
+        var nx = h ? h.nx : null, ny = h ? h.ny : null;
+        var dy = h ? h.dy : null;
+        var la1 = h ? h.la1 : null;
+        if (h && typeof dy === "number") h.dy = Math.abs(dy);
+
+        // Compute south edge if la1 appears to be north-first
+        // If la1 is greater than la2-like estimate, assume north-first
+        if (h && typeof la1 === "number" && typeof h.dy === "number" && ny){
+          var latOther = la1 + h.dy * (ny - 1);
+          // If latOther is > la1, then la1 is likely SOUTH already (south-first)
+          // If latOther is < la1, then la1 is NORTH (north-first) and we need flip
+          var northFirst = (latOther < la1);
+          if (northFirst){
+            var latMin = latOther; // becomes south edge after flip
+            data.forEach(function(rec){
+              if (!rec || !rec.header || !Array.isArray(rec.data)) return;
+              var nx2 = rec.header.nx, ny2 = rec.header.ny;
+              if (!nx2 || !ny2 || rec.data.length !== nx2*ny2) return;
+
+              rec.header.la1 = latMin;
+              rec.header.dy = Math.abs(rec.header.dy || 0);
+
+              var flipped = new Array(nx2*ny2);
+              for (var y=0; y<ny2; y++){
+                var srcRow = (ny2 - 1 - y) * nx2;
+                var dstRow = y * nx2;
+                for (var x=0; x<nx2; x++){
+                  flipped[dstRow + x] = rec.data[srcRow + x];
+                }
+              }
+              rec.data = flipped;
+            });
+          }
+        }
       }catch(e){}
 
-      // Color ramp: blue -> dark blue -> green -> yellow -> red (0..50 mph)
-      function msToMph(ms){ return ms * 2.23694; }
-      
-  // --- Fix for Leaflet-Velocity grid origin ---
-  // Leaflet-Velocity expects header.la1 to be the SOUTH edge (min lat) with positive dy.
-  // Our JSON was exported "north-first" (la1 = north edge). So we:
-  // 1) set la1 to LAT_MIN
-  // 2) keep dy positive
-  // 3) flip the data rows so row 0 corresponds to the south edge.
-  function normalizeVelocityNorthFirstToSouthFirst(records, latMin){
-    if (!Array.isArray(records) || records.length < 2) return records;
-
-    for (const rec of records){
-      if (!rec || !rec.header || !Array.isArray(rec.data)) continue;
-      const nx = rec.header.nx, ny = rec.header.ny;
-      if (!nx || !ny || rec.data.length !== nx*ny) continue;
-
-      // Patch header to south-first convention
-      rec.header.la1 = latMin;
-      rec.header.dy = Math.abs(rec.header.dy || 0);
-
-      // Flip rows (north-first -> south-first)
-      const flipped = new Array(nx*ny);
-      for (let y=0; y<ny; y++){
-        const srcRow = (ny - 1 - y) * nx;
-        const dstRow = y * nx;
-        for (let x=0; x<nx; x++){
-          flipped[dstRow + x] = rec.data[srcRow + x];
-        }
-      }
-      rec.data = flipped;
-    }
-    return records;
-  }
-function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
-      function lerp(a,b,t){ return a + (b-a)*t; }
-      function lerpColor(c1,c2,t){
-        return [
-          Math.round(lerp(c1[0], c2[0], t)),
-          Math.round(lerp(c1[1], c2[1], t)),
-          Math.round(lerp(c1[2], c2[2], t))
-        ];
-      }
-      function rgbCss(c){ return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }
-
-      var MPH_MAX = 50;
-      var c0  = [191,233,255];
-      var c20 = [ 58,160,255];
-      var c30 = [  0, 91,255];
-      var c40 = [  0,200, 83];
-      var c45 = [255,212,  0];
-      var c50 = [255, 45, 45];
-
-      function colorForMph(mph){
-        mph = clamp(mph, 0, MPH_MAX);
-        if (mph <= 20) return rgbCss(lerpColor(c0,  c20, mph/20));
-        if (mph <= 30) return rgbCss(lerpColor(c20, c30, (mph-20)/10));
-        if (mph <= 40) return rgbCss(lerpColor(c30, c40, (mph-30)/10));
-        if (mph <= 45) return rgbCss(lerpColor(c40, c45, (mph-40)/5));
-        return rgbCss(lerpColor(c45, c50, (mph-45)/5));
-      }
-
+      // Jet streak contrast:
+      // - raise maxVelocity so we don't saturate into all-red
+      // - add purple at the top end for strongest cores
       window._jetVelocityLayer = L.velocityLayer({
         data: data,
-        maxVelocity: 22.35,         // m/s scale inside plugin; just affects legend scaling
+        maxVelocity: 70,              // m/s (≈157 mph) better for 250mb jet
         velocityScale: 0.010,
         particleAge: 60,
-        lineWidth: 1,
-        opacity: 0.55,
+        lineWidth: 1.2,
+        opacity: 0.50,
+        particleMultiplier: 1/220,
         displayValues: true,
         displayOptions: {
           velocityType: "Jet (250mb)",
@@ -2206,22 +2400,34 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
           speedUnit: "mph",
           emptyString: "No data"
         },
-        colorScale: ["#bfe9ff","#3aa0ff","#005bff","#00c853","#ffd400","#ff2d2d"]});
+        colorScale: ["#d7f3ff","#6ec6ff","#1e88e5","#00c853","#ffd600","#ff6d00","#e53935","#8e24aa"]
+      });
+
+      window._jetVelocityUrlBare = bareUrl;
 
       // If the checkbox is already on, attach immediately
       if (typeof map !== "undefined" && map && map.hasLayer(jetParticlesLayer)){
         jetParticlesLayer.addLayer(window._jetVelocityLayer);
       }
+
+      // Update UI time label if we're using frames
+      try{
+        var lab = document.getElementById("jetTimeLabel");
+        if (lab && jetFrames && jetFrames.length){
+          lab.textContent = formatZShort(jetDateForIndex(jetFrameIndex));
+        }
+      }catch(e){}
     })
     .catch(function(err){
       console.log("Jet particles load failed:", err);
-      // Helpful hint in status box if present
+      setJetHint("Jet frame missing. Check that your JSON frames are in jet_anim/ and names match.");
       try{
         var st = document.getElementById("status");
         if (st) st.textContent = "Jet particles failed to load. Check leaflet-velocity files + JSON path.";
       }catch(e){}
     });
 }
+
 
 function updateJetLayersVisibility(){
   // Called from overlayadd/overlayremove

@@ -99,6 +99,24 @@ html, body { height:100%; margin:0; }
 .btime{min-width:190px;text-align:center;font-weight:800;letter-spacing:.2px;}
 .bsep{width:1px;height:26px;background:rgba(255,255,255,0.25);margin:0 4px;}
 
+  /* Open Lesson button inside banner */
+  .open-lesson-btn{
+    pointer-events:auto;
+    border:1px solid rgba(0,0,0,0.25);
+    background:#fdd835;
+    color:#111;
+    padding:12px 16px;
+    border-radius:14px;
+    font:900 12px/1 Arial, sans-serif;
+    letter-spacing:1px;
+    cursor:pointer;
+    text-transform:uppercase;
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+    white-space:nowrap;
+  }
+  .open-lesson-btn:hover{ filter:brightness(0.98); }
+
+
   .bzoom{font-weight:800;letter-spacing:.06em;color:#fff;opacity:.92;margin-right:8px}
 .banner-actions{margin-left:auto;display:flex;align-items:center;gap:10px;}
 .bstatus{margin-left:14px;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis;
@@ -160,32 +178,28 @@ html, body { height:100%; margin:0; }
   }
 
 
-  /* --- Guide collapsed tab --- */
-  #storyTab{
-    position:absolute;
-    top:92px;
-    left:10px;
-    z-index:100000;
-    background:#fdd835;
-    color:#111;
-    font:900 12px/1 Arial, sans-serif;
-    letter-spacing:1px;
-    padding:12px 12px;
-    border-radius:14px;
-    border:1px solid rgba(0,0,0,0.25);
-    box-shadow: 0 8px 22px rgba(0,0,0,.22);
-    cursor:pointer;
-    display:block;
-    user-select:none;
-    text-transform:uppercase;
-  }
+    /* --- Guide collapsed tab (legacy) --- */
+  #storyTab{ display:none !important; }
 
-  /* Custom zoom box above layer toggles (top-right) */
-  .zoom-box{
+
+  
+  /* Map controls row (top-right, above layer toggles) */
+  .map-control-row{
     position:absolute;
-    top:140px;
+    top:175px;
     right:10px;
     z-index:100000;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:10px;
+    flex-wrap:wrap;
+    user-select:none;
+    pointer-events:auto;
+  }
+
+  /* Custom zoom box + tools box share styling */
+  .zoom-box, .tool-box{
     display:flex;
     align-items:center;
     gap:8px;
@@ -194,14 +208,15 @@ html, body { height:100%; margin:0; }
     border-radius:14px;
     padding:8px 10px;
     box-shadow: 0 8px 22px rgba(0,0,0,.22);
-    user-select:none;
   }
-  .zoom-label{
+
+  .zoom-label, .tool-label{
     font:900 11px/1 Arial, sans-serif;
     letter-spacing:.8px;
     color:#fff;
     opacity:.92;
   }
+
   .zoom-btn{
     border:1px solid rgba(255,255,255,0.35);
     background:rgba(0,0,0,0.25);
@@ -214,28 +229,6 @@ html, body { height:100%; margin:0; }
   }
   .zoom-btn:hover{ background:rgba(0,0,0,0.40); }
 
-  /* Map tools box (top-right, above layer toggles) */
-  .tool-box{
-    position:absolute;
-    top:188px;
-    right:10px;
-    z-index:100000;
-    display:flex;
-    align-items:center;
-    gap:8px;
-    background:rgba(11,28,45,0.92);
-    border:1px solid rgba(255,255,255,0.18);
-    border-radius:14px;
-    padding:8px 10px;
-    box-shadow: 0 8px 22px rgba(0,0,0,.22);
-    user-select:none;
-  }
-  .tool-label{
-    font:900 11px/1 Arial, sans-serif;
-    letter-spacing:.8px;
-    color:#fff;
-    opacity:.92;
-  }
   .tool-btn{
     border:1px solid rgba(255,255,255,0.35);
     background:rgba(0,0,0,0.25);
@@ -249,8 +242,15 @@ html, body { height:100%; margin:0; }
   }
   .tool-btn:hover{ background:rgba(0,0,0,0.40); }
   .tool-btn.active{ background:#fdd835; color:#111; border-color: rgba(0,0,0,0.35); }
+  .tool-btn.disabled{
+    opacity:.35;
+    filter:grayscale(1);
+    cursor:not-allowed;
+  }
+
   body.measure-active #map{ cursor: crosshair; }
   body.probe-active #map{ cursor: crosshair; }
+  body.draw-active #map{ cursor: crosshair; }
 
   /* Remove default Leaflet zoom buttons (we use custom zoom box) */
   .leaflet-control-zoom{ display:none !important; }
@@ -392,26 +392,28 @@ html, body { height:100%; margin:0; }
   color:#fff;
   border-bottom:2px solid rgba(255,255,255,0.12);
 }
+
 .banner-topline{
   display:flex;
   align-items:center;
-  justify-content:space-between;
+  justify-content:center;
   gap:12px;
   padding:10px 14px 6px 14px;
   font-family: Arial, sans-serif;
   text-transform:uppercase;
   letter-spacing:.7px;
+  text-align:center;
 }
 .topline-center{
   display:flex;
+  flex-direction:column;
   flex:1 1 auto;
   min-width:0;
-  align-items:baseline;
-  gap:10px;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
   max-width:1200px;
   width:100%;
-  justify-content:flex-start;
-  flex-wrap:wrap;
 }
 .top-lesson{font-weight:900;font-size:26px;white-space:nowrap}
 .top-sep{opacity:.65;font-weight:900}
@@ -855,7 +857,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   width:100%;
   max-width:1200px;
 }
-.bl-left{justify-self:start;}
+.bl-left{justify-self:start; display:flex; align-items:center; gap:12px;}
 .bl-center{justify-self:center;}
 .bl-right{justify-self:end;}
 
@@ -912,8 +914,10 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   <div class="tiny" id="storyStep"></div>
 </div>
 <div id="storyTab" aria-label="Open lesson">OPEN LESSON</div>
-<div id="zoomBox" class="zoom-box" aria-label="Zoom controls"><span class="zoom-label">ZOOM</span><button class="zoom-btn" id="zoomMinus" title="Zoom out">−</button><button class="zoom-btn" id="zoomPlus" title="Zoom in">+</button></div>
-<div id="toolBox" class="tool-box" aria-label="Map tools"><span class="tool-label">TOOLS</span><button class="tool-btn" id="toolMeasure" title="Measure distance">RULER</button><button class="tool-btn" id="toolProbe" title="Pixel query / probe">PROBE</button><button class="tool-btn" id="toolHome" title="Reset view">HOME</button></div>
+<div id="mapControlRow" class="map-control-row" aria-label="Map controls row">
+  <div id="toolBox" class="tool-box" aria-label="Map tools"><span class="tool-label">TOOLS</span><button class="tool-btn" id="toolMeasure" title="Measure distance">RULER</button><button class="tool-btn" id="toolProbe" title="Pixel query / probe">PROBE</button><button class="tool-btn" id="toolDraw" title="Teacher telestrator">DRAW</button><button class="tool-btn" id="toolErase" title="Erase drawings">ERASE</button><button class="tool-btn" id="toolHome" title="Reset view">HOME</button></div>
+  <div id="zoomBox" class="zoom-box" aria-label="Zoom controls"><span class="zoom-label">ZOOM</span><button class="zoom-btn" id="zoomMinus" title="Zoom out">−</button><button class="zoom-btn" id="zoomPlus" title="Zoom in">+</button></div>
+</div>
 <div id="stormScienceGuide" aria-label="Weather Discovery Terms">
   <div class="ssg-head">
     <div class="ssg-title">Weather Discovery Terms</div>
@@ -948,6 +952,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   <div class="banner-bottomline">
     <div class="bottomline-center">
   <div class="bl-left">
+    <button class="open-lesson-btn" id="openLessonBtn" title="Open or close lesson panel">OPEN LESSON</button>
     <div class="time-controls" aria-label="Time controls">
         <button class="bbtn" id="bBackBtn" title="Back 3 hours">◀</button>
         <div class="btime" id="bannerTimeLabel">April 14, 2018 7AM</div>
@@ -1048,10 +1053,23 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   if (zoomPlus) zoomPlus.onclick = function(){ map.zoomIn(); };
   if (zoomMinus) zoomMinus.onclick = function(){ map.zoomOut(); };
 
-  // Map tools (Ruler / Probe / Home)
+  // Map tools (Ruler / Probe / Draw / Home)
   var toolMeasureBtn = document.getElementById("toolMeasure");
   var toolProbeBtn   = document.getElementById("toolProbe");
+  var toolDrawBtn    = document.getElementById("toolDraw");
+  var toolEraseBtn   = document.getElementById("toolErase");
   var toolHomeBtn    = document.getElementById("toolHome");
+
+  // Teacher/student mode (URL param): ?mode=student to disable teacher tools
+  var isTeacherMode = true;
+  try{
+    var qsMode = new URLSearchParams(window.location.search).get("mode");
+    isTeacherMode = (qsMode !== "student");
+  }catch(e){ isTeacherMode = true; }
+
+  // Wire OPEN LESSON button in banner (replaces the old floating tab)
+  var openLessonBtn = document.getElementById("openLessonBtn");
+
 
   var measureStart = null;
   var measureLine = null;
@@ -1070,96 +1088,62 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
     if (on){
       document.body.classList.add("measure-active");
       document.body.classList.remove("probe-active");
-      if (toolMeasureBtn) toolMeasureBtn.classList.add("active");
-      if (toolProbeBtn) toolProbeBtn.classList.remove("active");
-      clearMeasureGraphics();
-    } else {
-      document.body.classList.remove("measure-active");
-      if (toolMeasureBtn) toolMeasureBtn.classList.remove("active");
-      clearMeasureGraphics();
-    }
-  }
-
-  function setProbeMode(on){
-    if (on){
-      document.body.classList.add("probe-active");
-      document.body.classList.remove("measure-active");
-      if (toolProbeBtn) toolProbeBtn.classList.add("active");
-      if (toolMeasureBtn) toolMeasureBtn.classList.remove("active");
-      clearMeasureGraphics();
-    } else {
-      document.body.classList.remove("probe-active");
-      if (toolProbeBtn) toolProbeBtn.classList.remove("active");
-    }
-  }
-
-  function handleMeasureClick(e){
-    if (!measureStart){
-      measureStart = e.latlng;
-      clearMeasureGraphics();
-      measureStartMarker = L.circleMarker(measureStart, {
-        radius: 7, color: "rgba(255,255,255,0.95)", weight: 2,
-        fillColor: "rgba(253,216,53,0.95)", fillOpacity: 0.95
-      }).addTo(map);
-      return;
-    }
-    var end = e.latlng;
-    var meters = map.distance(measureStart, end);
-    var miles = meters / 1609.344;
-    var km = meters / 1000.0;
-
-    if (measureLine) { try{ map.removeLayer(measureLine); }catch(err){} }
-    measureLine = L.polyline([measureStart, end], { color: "rgba(253,216,53,0.95)", weight: 4, opacity: 0.95 }).addTo(map);
-
-    var mid = L.latLng((measureStart.lat + end.lat)/2, (measureStart.lng + end.lng)/2);
-    var txt = "<div style='font:900 16px/1.1 Arial,sans-serif'>Distance</div>" +
-              "<div style='font:900 18px/1.2 Arial,sans-serif'>" + miles.toFixed(1) + " mi</div>" +
-              "<div style='font:800 14px/1.2 Arial,sans-serif;opacity:.9'>" + km.toFixed(1) + " km</div>";
-    measurePopup = L.popup({ closeButton:true, className:"hrrr-popup" }).setLatLng(mid).setContent(txt).openOn(map);
-
-    // Ready for another measurement
-    measureStart = null;
-    if (measureStartMarker) { try{ map.removeLayer(measureStartMarker); }catch(err){} }
-    measureStartMarker = null;
-  }
-
-  function handleProbeClick(e){
-    // For now, this reuses the HRRR-style "nearest point" probe if hrrrPoints are available.
-    // Later we can expand to probe jet stream / ERA5 / GOES, etc.
-    if (typeof hrrrPoints === "undefined" || !Array.isArray(hrrrPoints) || !hrrrPoints.length){
-      L.popup({ closeButton:true, className:"hrrr-popup" })
-        .setLatLng(e.latlng)
-        .setContent("<div style='font:900 16px/1.1 Arial,sans-serif'>Probe</div><div style='font:800 14px/1.2 Arial,sans-serif'>Turn on a probe-ready layer (like HRRR Temp) first.</div>")
-        .openOn(map);
-      return;
-    }
-    var best = null, bestDist = Infinity;
-    for (var i=0; i<hrrrPoints.length; i++){
-      var p = hrrrPoints[i];
-      var d = L.latLng(e.latlng.lat, e.latlng.lng).distanceTo([p.lat, p.lon]);
-      if (d < bestDist){ bestDist = d; best = p; }
-    }
-    if (!best) return;
-    var val = (best.tF != null) ? Number(best.tF).toFixed(0) : "—";
-    L.popup({ closeButton:true, className:"hrrr-popup" })
-      .setLatLng(e.latlng)
-      .setContent("<div style='font:900 16px/1.1 Arial,sans-serif'>Probe</div><div style='font:900 22px/1.1 Arial,sans-serif'>" + val + "°F</div>")
-      .openOn(map);
-  }
-
+      
   if (toolMeasureBtn) toolMeasureBtn.onclick = function(){
     var on = !document.body.classList.contains("measure-active");
     setMeasureMode(on);
+    if (on) setDrawMode(false);
   };
+
   if (toolProbeBtn) toolProbeBtn.onclick = function(){
+    // Keep probe simple: if HRRR layer isn't on, tell the user and don't enable.
+    try{
+      if (!(map && typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer))){
+        L.popup({ closeButton:true, className:"hrrr-popup" })
+          .setLatLng(map.getCenter())
+          .setContent("<div style='font:900 16px/1.1 Arial,sans-serif'>Probe</div><div style='font:900 18px/1.1 Arial,sans-serif'>Turn on <b>HRRR Temp (2m)</b> to probe.</div>")
+          .openOn(map);
+        setProbeMode(false);
+        return;
+      }
+    }catch(e){}
     var on = !document.body.classList.contains("probe-active");
     setProbeMode(on);
+    if (on) setDrawMode(false);
   };
+
+  if (toolDrawBtn) toolDrawBtn.onclick = function(){
+    var on = !document.body.classList.contains("draw-active");
+    setDrawMode(on);
+  };
+
+  if (toolEraseBtn) toolEraseBtn.onclick = function(){
+    if (!isTeacherMode) return;
+    clearDrawings();
+  };
+
   if (toolHomeBtn) toolHomeBtn.onclick = function(){
-    setMeasureMode(false); setProbeMode(false);
+    setMeasureMode(false); setProbeMode(false); setDrawMode(false);
     clearMeasureGraphics();
     map.setView([43.55, -96.73], 6);
   };
+
+  // OPEN LESSON button in banner toggles the storyteller panel
+  if (openLessonBtn){
+    openLessonBtn.onclick = function(){
+      try{
+        if (storyPanelEl && storyPanelEl.classList.contains("story-open")) closeGuide();
+        else openGuide();
+      }catch(e){}
+    };
+  }
+
+  // Disable teacher-only tools in student mode
+  if (!isTeacherMode){
+    if (toolDrawBtn){ toolDrawBtn.classList.add("disabled"); }
+    if (toolEraseBtn){ toolEraseBtn.classList.add("disabled"); }
+  }
+
 
 
 

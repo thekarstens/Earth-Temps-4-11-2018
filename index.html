@@ -721,7 +721,7 @@ html, body { height:100%; margin:0; }
   max-width:92vw;
   max-height: calc(100vh - 100px);
   overflow:hidden;
-  z-index:100002;       /* above map + legend */
+  z-index:100010;       /* above map + legend */
   background:rgba(255,255,255,0.98);
   border:1px solid rgba(0,0,0,0.18);
   border-radius:16px;
@@ -938,7 +938,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 #mapLegend{ display:none !important; }
 
 /* Move terms button down a touch so logo never overlaps */
-#stormScienceGuideBtn{ transform: translateY(6px); }
+#stormScienceGuideBtn{ transform: translateY(14px); position:relative; z-index:100012; }
 
 /* Logo: nudge slightly up-right to clear the terms button */
 #brandLogo{
@@ -952,7 +952,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   position:absolute;
   right:10px;
   top:160px; /* JS will refine this */
-  z-index:100003;
+  z-index:100004;
   background:rgba(11,28,45,0.92);
   border:1px solid rgba(255,255,255,0.18);
   border-radius:14px;
@@ -975,10 +975,29 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   letter-spacing:.6px;
   text-transform:uppercase;
   white-space:nowrap;
+
+.cb-row{ display:flex; align-items:center; gap:10px; margin-top:6px; }
+.cb-btn{
+  border:1px solid rgba(255,255,255,0.35);
+  background:rgba(0,0,0,0.25);
+  color:#fff;
+  padding:8px 10px;
+  border-radius:12px;
+  font:900 14px/1 Arial, sans-serif;
+  cursor:pointer;
+  line-height:1;
+}
+.cb-btn:hover{ background:rgba(0,0,0,0.40); }
+.cb-scrubber{
+  width:100%;
+  margin-top:8px;
+  accent-color:#fdd835;
+}
 }
 
 /* Hide the time label inside the banner row (clock lives in the bubble now) */
 #bannerTimeLabel{ display:none !important; }
+.time-controls{ display:none !important; }
 
 /* Custom zoom in lower-right corner */
 .zoom-corner{
@@ -1006,6 +1025,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   line-height:1;
 }
 .zoom-corner-btn:hover{ background:rgba(0,0,0,0.40); }
+.zoom-corner-label{font:900 11px/1 Arial,sans-serif;letter-spacing:.8px;color:#fff;opacity:.92;margin-right:6px;}
 
 /* Use custom zoom; hide Leaflet default zoom */
 .leaflet-control-zoom{ display:none !important; }
@@ -1074,6 +1094,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
 <!-- Custom zoom buttons in lower-right corner -->
 <div id="zoomCorner" class="zoom-corner" aria-label="Zoom controls">
+  <span class="zoom-corner-label">ZOOM</span>
   <button class="zoom-corner-btn" id="zoomCornerMinus" title="Zoom out">−</button>
   <button class="zoom-corner-btn" id="zoomCornerPlus" title="Zoom in">+</button>
 </div>
@@ -1081,7 +1102,14 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 <!-- Master clock bubble (floats above layer toggle box) -->
 <div id="clockBubble" class="clock-bubble" aria-label="Time">
   <div class="cb-label">TIME</div>
-  <div class="cb-time" id="clockBubbleTime">—</div>
+  <div class="cb-row" aria-label="Time controls">
+    <button class="cb-btn" id="cbBackBtn" title="Back 3 hours">◀</button>
+    <div class="cb-time" id="clockBubbleTime">—</div>
+    <button class="cb-btn" id="cbFwdBtn" title="Forward 3 hours">▶</button>
+  </div>
+  <input id="cbScrubber" class="cb-scrubber" type="range" min="0" max="0" step="1" value="0" aria-label="Time scrubber" />
+</div>
+<div class="cb-time" id="clockBubbleTime">—</div>
 </div>
 
 <div id="stormScienceGuide" aria-label="Weather Discovery Terms">
@@ -2795,8 +2823,48 @@ function ensureEra5Overlays(){
     },
     onEachFeature: function(f, layer){
       var props = f.properties || {};
-      var title = props.event || props.EVENT || props.headline || props.HEADLINE || props.prod_type || props.phenomena || "Warning";
-      layer.bindPopup("<b>" + String(title) + "</b>");
+      var ev = String(props.event || props.EVENT || props.headline || props.HEADLINE || "").trim();
+      var phe = String(props.phenomena || props.PHENOM || props.phenom || "").trim().toUpperCase();
+      var sig = String(props.significance || props.SIG || props.sig || "").trim().toUpperCase();
+
+      function titleFromCodes(phe, sig){
+        var base = "";
+        if (phe === "TO") base = "Tornado";
+        else if (phe === "SV") base = "Severe Thunderstorm";
+        else if (phe === "FF") base = "Flash Flood";
+        else if (phe === "FL") base = "Flood";
+        else if (phe === "MA") base = "Marine";
+        else if (phe) base = phe;
+
+        var level = "";
+        if (sig === "W") level = "Warning";
+        else if (sig === "A") level = "Watch";
+        else if (sig === "Y") level = "Advisory";
+        else if (sig) level = sig;
+
+        return (base && level) ? (base + " " + level) : (ev || "Warning");
+      }
+
+      // Prefer human-readable event/headline if it looks specific
+      var title = ev;
+      if (!title || title.toLowerCase() === "warning" || title.toLowerCase().endswith(" warning") === false && sig === "W"){
+        title = titleFromCodes(phe, sig);
+      }
+
+      // Optional extra details (if present)
+      var onset = props.onset || props.ONSET || props.start || props.START || "";
+      var ends  = props.ends  || props.ENDS  || props.end   || props.END   || "";
+      var area  = props.areaDesc || props.AREADESC || props.area || "";
+
+      var html = "<div style='font:900 16px/1.15 Arial,sans-serif; margin-bottom:6px;'>" + String(title) + "</div>";
+      if (area) html += "<div style='font:800 13px/1.25 Arial,sans-serif; opacity:.9; margin-bottom:6px;'>" + String(area) + "</div>";
+      if (onset || ends){
+        html += "<div style='font:800 12px/1.25 Arial,sans-serif; opacity:.85;'>" +
+                (onset ? ("Begins: " + onset + "<br>") : "") +
+                (ends ? ("Ends: " + ends) : "") +
+                "</div>";
+      }
+      layer.bindPopup(html);
     }
   });
   alertsLayer.addTo(map);
@@ -3513,8 +3581,8 @@ async function loadJetFramesManifest(){
     var out = [];
     for (var i=0;i<mj.length;i++){
       var it = mj[i];
-      if (typeof it === "string") out.push({url: it, label: it.split("/").pop()});
-      else if (it && typeof it.url === "string") out.push({url: it.url, label: it.label || it.url.split("/").pop()});
+      if (typeof it === "string"){ var u = resolveJetFrameUrl(it); out.push({url: u, label: u.split("/").pop()}); }
+      else if (it && typeof it.url === "string"){ var u2 = resolveJetFrameUrl(it.url); out.push({url: u2, label: it.label || u2.split("/").pop()}); }
     }
     return out.length ? out : null;
   }catch(e){
@@ -3560,6 +3628,7 @@ function normalizeVelocityIfNeeded(data){
 
 async function loadJetVelocityFromUrl(url){
   if (!url) throw new Error("No URL for jet frame.");
+  url = resolveJetFrameUrl(url);
   setJetAnimText("jetAnimStatus", "Loading: " + url);
   console.log("[JetAnim] fetch", url);
 
@@ -3587,8 +3656,8 @@ async function loadJetVelocityFromUrl(url){
     velocityScale: 0.01,
     particleAge: 60,
     particleMultiplier: 1/220,
-    lineWidth: 1.2,
-    opacity: 0.45,
+    lineWidth: 1.6,
+    opacity: 0.62,
     colorScale: ["#d7f3ff","#6ec6ff","#1e88e5","#00c853","#ffd600","#ff6d00","#e53935","#8e24aa"]
   });
 
@@ -3899,8 +3968,22 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
     var label = formatCentralLabel(curZ);
     var btl = document.getElementById("bannerTimeLabel");
     if (btl) btl.textContent = label;
+
     var cbt = document.getElementById("clockBubbleTime");
     if (cbt) cbt.textContent = label;
+
+    // Sync scrubber to current time
+    try{
+      var scrub = document.getElementById("cbScrubber");
+      if (scrub){
+        var idx = Math.round((curZ.getTime() - startZ.getTime()) / (STEP_HOURS*3600*1000));
+        if (idx < 0) idx = 0;
+        var max = Math.round((endZ.getTime() - startZ.getTime()) / (STEP_HOURS*3600*1000));
+        scrub.max = String(max);
+        scrub.value = String(idx);
+      }
+    }catch(e){}
+
     positionClockBubble();
   }
 
@@ -4033,14 +4116,28 @@ function updateAlerts(){
     if (curZ > endZ) curZ = new Date(endZ.getTime());
   }
 
-  document.getElementById('bBackBtn').onclick = function(){
+  var _back = document.getElementById('cbBackBtn') || document.getElementById('bBackBtn');
+  if (_back) _back.onclick = function(){
     curZ = new Date(curZ.getTime() - STEP_HOURS*3600*1000);
     clampTime(); updateAll();
   };
-  document.getElementById('bFwdBtn').onclick = function(){
+  var _fwd = document.getElementById('cbFwdBtn') || document.getElementById('bFwdBtn');
+  if (_fwd) _fwd.onclick = function(){
     curZ = new Date(curZ.getTime() + STEP_HOURS*3600*1000);
     clampTime(); updateAll();
   };
+
+  // Time scrubber (drag to jump through time)
+  var _scrub = document.getElementById("cbScrubber");
+  if (_scrub){
+    _scrub.oninput = function(){
+      var v = parseInt(_scrub.value, 10);
+      if (!isFinite(v)) return;
+      curZ = new Date(startZ.getTime() + v*STEP_HOURS*3600*1000);
+      clampTime(); updateAll();
+    };
+  }
+
 
   const zIn = document.getElementById("zoomInBtn");
   const zOut = document.getElementById("zoomOutBtn");

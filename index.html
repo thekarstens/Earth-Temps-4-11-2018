@@ -1033,6 +1033,45 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 /* Tighten bottomline spacing a hair now that legend moved into banner */
 .banner-bottomline{ padding-top:4px !important; padding-bottom:10px !important; }
 
+
+
+/* ===== Premium banner background (opaque + subtle weather texture) ===== */
+.tvbanner{
+  background-color:#0b1c2d !important;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='1200'%20height='220'%20viewBox='0%200%201200%20220'%3E%0A%3Cdefs%3E%0A%3ClinearGradient%20id='g'%20x1='0'%20x2='1'%20y1='0'%20y2='0'%3E%0A%3Cstop%20offset='0'%20stop-color='%230b1c2d'/%3E%0A%3Cstop%20offset='1'%20stop-color='%23102a44'/%3E%0A%3C/linearGradient%3E%0A%3C/defs%3E%0A%3Crect%20width='1200'%20height='220'%20fill='url(%23g)'/%3E%0A%3Cg%20fill='white'%20opacity='0.07'%3E%0A%3Cpath%20d='M170%20150c-22%200-40-14-40-32%200-17%2016-30%2037-32%207-20%2029-34%2055-34%2030%200%2055%2018%2058%2041%2023%202%2041%2016%2041%2033%200%2018-20%2033-45%2033H170z'/%3E%0A%3Cpath%20d='M520%20120c-28%200-51-17-51-38%200-20%2020-36%2046-38%209-24%2035-41%2066-41%2036%200%2066%2022%2070%2049%2028%203%2049%2020%2049%2040%200%2021-24%2038-54%2038H520z'/%3E%0A%3Cpath%20d='M880%20155c-24%200-44-15-44-34%200-18%2018-32%2041-34%208-21%2031-36%2059-36%2033%200%2060%2020%2063%2045%2024%203%2043%2017%2043%2035%200%2019-21%2034-48%2034H880z'/%3E%0A%3C/g%3E%0A%3Cg%20stroke='white'%20stroke-opacity='0.05'%20stroke-width='2'%3E%0A%3Cpath%20d='M0%20190%20C%20200%20150,%20400%20220,%20600%20180%20S%201000%20210,%201200%20170'%20fill='none'/%3E%0A%3Cpath%20d='M0%2060%20C%20220%2020,%20420%2090,%20650%2055%20S%20980%2095,%201200%2045'%20fill='none'/%3E%0A%3C/g%3E%0A%3C/svg%3E") !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  opacity: 1 !important;
+}
+/* Ensure any previous banner overlay remains subtle but NOT see-through */
+.tvbanner::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(ellipse at 20% 40%, rgba(255,255,255,0.06), transparent 55%),
+              radial-gradient(ellipse at 80% 30%, rgba(255,255,255,0.05), transparent 60%);
+  pointer-events:none;
+}
+
+/* Keep Open Lesson safely above any story panel */
+#openLessonBtn{
+  position:absolute !important;
+  left:14px !important;
+  top:58px !important;
+  z-index: 4000 !important;
+}
+
+/* Weather discovery terms button: nudge down so logo never overlaps */
+#stormScienceGuideBtn{
+  margin-top: 12px !important;
+}
+
+/* Clock bubble default a bit lower; JS will keep it below banner */
+.clock-bubble{
+  top: 220px !important;
+}
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -3500,7 +3539,7 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
           speedUnit: "mph",
           emptyString: "No data"
         },
-        colorScale: ["#bfe9ff","#3aa0ff","#005bff","#00c853","#ffd400","#ff2d2d"]});
+        colorScale: ["#bfe9ff","#3aa0ff","#005bff","#00c853","#ffd400","#ff8a00","#ff2d2d","#d500f9","#6a00ff"]});
 
       // If the checkbox is already on, attach immediately
       if (typeof map !== "undefined" && map && map.hasLayer(jetParticlesLayer)){
@@ -3960,9 +3999,22 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
       if (!bubble) return;
       var ctrl = document.querySelector(".leaflet-control-layers");
       if (!ctrl) return;
+
       var rect = ctrl.getBoundingClientRect();
-      // Place bubble just above the layers control, aligned to its right edge
-      var top = Math.max(86, rect.top - bubble.offsetHeight - 10);
+
+      // Keep the clock bubble OUT of the banner area.
+      var banner = document.getElementById("tvBanner");
+      var bannerBottom = 0;
+      if (banner){
+        var brect = banner.getBoundingClientRect();
+        bannerBottom = brect.bottom || 0;
+      }
+
+      // Place bubble just above the layers control, aligned to its right edge,
+      // but never higher than the bottom of the banner.
+      var top = rect.top - bubble.offsetHeight - 10;
+      top = Math.max(bannerBottom + 10, top);
+
       var rightGap = Math.max(10, window.innerWidth - rect.right);
       bubble.style.top = top + "px";
       bubble.style.right = (rightGap) + "px";

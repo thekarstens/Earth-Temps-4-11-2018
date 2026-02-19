@@ -26,6 +26,9 @@ var storyStarted = false; // do not auto-open storyboard
 html, body { height:100%; margin:0; }
   #map { height:100%; background:#fff; }
 
+
+  /* Slight boost to make water a touch bluer (subtle, keeps land white/gray) */
+  .basemap-tiles{ filter: saturate(1.12) hue-rotate(-4deg); }
   /* Top TV-style banner */
   .tvbanner{
     position:absolute; top:0; left:0; right:0;
@@ -850,30 +853,12 @@ html, body { height:100%; margin:0; }
 
   // Kick off loading in the background (won't break anything if missing)
   loadUsStatesGeoJSONOnce();
-  // Clean base map (no labels) — light gray (white/gray land, low clutter)
-var base = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-  { attribution: "Tiles © Esri", maxZoom: 19 }
-).addTo(map);
-
-// Optional: major highways / interstates reference (kept subtle, only when zoomed in enough)
-var highways = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
-  { attribution: "", maxZoom: 19, opacity: 0.55 }
-);
-
-function updateHighways(){
-  var z = map.getZoom();
-  // Show interstates when you're in the regional view and closer
-  if (z >= 5){
-    if (!map.hasLayer(highways)) highways.addTo(map);
-  } else {
-    if (map.hasLayer(highways)) map.removeLayer(highways);
-  }
-}
-map.on("zoomend", updateHighways);
-map.on("moveend", updateHighways);
-updateHighways();
+  // Clean base map (no labels) — CARTO Light (white/gray land)
+  var base = L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+    { attribution: "© OpenStreetMap © CARTO", subdomains:"abcd", maxZoom: 19, className: "basemap-tiles" }
+  ).addTo(map);
+// (No road overlay)
 
 // --- Extra Midwest city labels (shows more as you zoom in) ---
   var cityLabelLayer = L.layerGroup().addTo(map);
@@ -952,37 +937,34 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
     ["Denver", 39.7392, -104.9903]
   ];
 
-  var CITIES_TIER2 = [
-["Fargo", 46.8772, -96.7898],
-    ["Bismarck", 46.8083, -100.7837],
-    ["Pierre", 44.3683, -100.3510],
-    ["Brookings", 44.3114, -96.7984],
-    ["Watertown", 44.8994, -97.1150],
-    ["Rochester", 44.0121, -92.4802],
-    ["Sioux City", 42.4990, -96.4003],
-    ["Lincoln", 40.8136, -96.7026],
-    ["St. Louis", 38.6270, -90.1994],
-    ["Madison", 43.0731, -89.4012],
-    ["Milwaukee", 43.0389, -87.9065],
-    ["Chicago", 41.8781, -87.6298],
-    ["Grand Forks", 47.9253, -97.0329],
-    ["Minot", 48.2325, -101.2963],
-    ["Williston", 48.1469, -103.6179],
-    ["Dickinson", 46.8792, -102.7896],
-    ["Helena", 46.5884, -112.0245],
-    ["Great Falls", 47.5053, -111.3008],
-    ["Bozeman", 45.677, -111.0429],
-    ["Kalispell", 48.1958, -114.3129]
+  \1
+  var CITIES_TIER3 = [
+    [\"Mitchell\", 43.7094, -98.0298],
+    [\"Yankton\", 42.8711, -97.3973],
+    [\"Vermillion\", 42.7794, -96.9292],
+    [\"Worthington\", 43.6194, -95.5964],
+    [\"Marshall\", 44.4469, -95.7880],
+    [\"Luverne\", 43.6541, -96.2125],
+    [\"Pipestone\", 43.9970, -96.3175],
+    [\"Madison\", 44.0061, -97.1133],
+    [\"Norfolk\", 42.0327, -97.4170]
   ];
-
-  function updateCityLabels(){
+function updateCityLabels(){
     var z = map.getZoom();
+
+    // When we're very zoomed-in, let the basemap labels do the work (less clutter).
+    if (z >= 10){
+      cityLabelLayer.clearLayers();
+      nationalCityLayer.clearLayers();
+      return;
+    }
+
     cityLabelLayer.clearLayers();
 
-    // 1) Wide CONUS view: show decluttered major US cities
-    if (z <= 4){
-      // tighter spacing at the very wide view
-      var minPx = (z <= 3) ? 95 : 75;
+    // 1) Wide CONUS view: show decluttered major US cities (keep them on a bit longer)
+    if (z <= 5){
+      // tighter spacing at the very wide view, slightly looser as you zoom in
+      var minPx = (z <= 3) ? 95 : (z === 4 ? 80 : 70);
       addDeclutteredCityLabels(nationalCityLayer, NATIONAL_CITIES, minPx);
     } else {
       nationalCityLayer.clearLayers();
@@ -994,6 +976,9 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
     }
     if (z >= 7){
       CITIES_TIER2.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
+    }
+    if (z >= 8){
+      CITIES_TIER3.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
     }
   }
 
@@ -1012,7 +997,7 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
   function updateBaseLabels(){
     var z = map.getZoom();
     // Only show built-in labels when VERY zoomed in (roughly ~100 miles across)
-    if (z >= 8){
+    if (z >= 10){
       if (!map.hasLayer(labels)) labels.addTo(map);
     } else {
       if (map.hasLayer(labels)) map.removeLayer(labels);
@@ -2373,7 +2358,7 @@ function renderJetPoints(){
   var minMph = 120;
   if (z >= 6) minMph = 100;
   if (z >= 7) minMph = 85;
-  if (z >= 8) minMph = 70;
+  if (z >= 10) minMph = 70;
   if (z >= 9) minMph = 55;
   if (z >= 10) minMph = 40;
   if (z >= 11) minMph = 25;
@@ -2384,7 +2369,7 @@ function renderJetPoints(){
   if (z >= 5)  cell = 4.0;
   if (z >= 6)  cell = 2.5;
   if (z >= 7)  cell = 1.6;
-  if (z >= 8)  cell = 1.0;
+  if (z >= 10)  cell = 1.0;
   if (z >= 9)  cell = 0.65;
   if (z >= 10) cell = 0.45;
   if (z >= 11) cell = 0.30;
@@ -2393,7 +2378,7 @@ function renderJetPoints(){
   var r = 2.5;
   if (z >= 6) r = 3.0;
   if (z >= 7) r = 3.2;
-  if (z >= 8) r = 3.6;
+  if (z >= 10) r = 3.6;
   if (z >= 9) r = 4.0;
   if (z >= 10) r = 4.6;
   if (z >= 11) r = 5.2;

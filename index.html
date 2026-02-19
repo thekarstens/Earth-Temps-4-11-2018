@@ -878,6 +878,141 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 /* If any legacy START button styles exist, hide it */
 #beginStoryBtn{ display:none !important; }
 
+
+/* === TEMP: hide map tools row (we'll bring back later) === */
+#mapControlRow{ display:none !important; }
+
+/* Re-enable default Leaflet zoom for now */
+.leaflet-control-zoom{ display:block !important; }
+
+/* === Tighten banner vertical spacing === */
+.banner-topline{ padding-top:6px !important; padding-bottom:2px !important; }
+.topline-center{ flex-direction:column !important; gap:2px !important; }
+.top-sep{ display:none !important; }
+.top-lesson{ font-size:22px !important; line-height:1.05 !important; }
+.top-question{ font-size:14px !important; line-height:1.15 !important; }
+
+/* === Subtle premium "cloud" texture (no distraction) === */
+.tvbanner{
+  background:
+    radial-gradient(1200px 220px at 20% -40%, rgba(255,255,255,0.10), rgba(255,255,255,0.00) 70%),
+    radial-gradient(900px 200px at 80% -30%, rgba(255,255,255,0.08), rgba(255,255,255,0.00) 70%),
+    radial-gradient(700px 180px at 55% 10%, rgba(255,255,255,0.06), rgba(255,255,255,0.00) 70%),
+    linear-gradient(180deg, rgba(11,28,45,0.94), rgba(11,28,45,0.88));
+}
+
+
+/* ===== Premium banner finish + new layout tweaks (v8) ===== */
+
+/* Subtle premium grain (very faint) */
+.tvbanner::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    repeating-linear-gradient(135deg,
+      rgba(255,255,255,0.035) 0px,
+      rgba(255,255,255,0.035) 1px,
+      rgba(0,0,0,0.00) 2px,
+      rgba(0,0,0,0.00) 6px);
+  opacity:0.22;
+  mix-blend-mode: overlay;
+}
+
+/* Legend under product label (inside banner) */
+.banner-legend-under{
+  margin-top:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:6px 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.22);
+  background:rgba(0,0,0,0.16);
+}
+.banner-legend-under .leg-mini-bar{ width:150px; height:10px; border-radius:7px; }
+
+/* Hide old map legend widget (we moved it to the banner) */
+#mapLegend{ display:none !important; }
+
+/* Move terms button down a touch so logo never overlaps */
+#stormScienceGuideBtn{ transform: translateY(6px); }
+
+/* Logo: nudge slightly up-right to clear the terms button */
+#brandLogo{
+  top:4px !important;
+  right:8px !important;
+  width:118px !important;
+}
+
+/* Master clock bubble in map space */
+.clock-bubble{
+  position:absolute;
+  right:10px;
+  top:160px; /* JS will refine this */
+  z-index:100003;
+  background:rgba(11,28,45,0.92);
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius:14px;
+  padding:10px 12px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.25);
+  color:#fff;
+  font-family: Arial, sans-serif;
+  user-select:none;
+  pointer-events:auto;
+}
+.cb-label{
+  font:900 11px/1 Arial,sans-serif;
+  letter-spacing:.9px;
+  text-transform:uppercase;
+  opacity:.92;
+}
+.cb-time{
+  margin-top:4px;
+  font:900 16px/1.05 Arial,sans-serif;
+  letter-spacing:.6px;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+
+/* Hide the time label inside the banner row (clock lives in the bubble now) */
+#bannerTimeLabel{ display:none !important; }
+
+/* Custom zoom in lower-right corner */
+.zoom-corner{
+  position:absolute;
+  right:14px;
+  bottom:84px; /* above attribution & bottom UI */
+  z-index:100003;
+  display:flex;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:14px;
+  background:rgba(11,28,45,0.92);
+  border:1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 10px 26px rgba(0,0,0,.25);
+  pointer-events:auto;
+}
+.zoom-corner-btn{
+  border:1px solid rgba(255,255,255,0.35);
+  background:rgba(0,0,0,0.25);
+  color:#fff;
+  padding:9px 12px;
+  border-radius:12px;
+  font:900 16px/1 Arial, sans-serif;
+  cursor:pointer;
+  line-height:1;
+}
+.zoom-corner-btn:hover{ background:rgba(0,0,0,0.40); }
+
+/* Use custom zoom; hide Leaflet default zoom */
+.leaflet-control-zoom{ display:none !important; }
+
+/* Tighten bottomline spacing a hair now that legend moved into banner */
+.banner-bottomline{ padding-top:4px !important; padding-bottom:10px !important; }
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -886,7 +1021,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
 <body>
 <div id="map"></div>
-<div id="mapLegend" class="map-legend" title="Radar reflectivity">
+<div id="mapLegend" class="map-legend" title="Radar reflectivity" style="display:none;">
   <div class="map-legend-row">
     <span class="leg-mini-label">Light</span>
     <span class="leg-mini-bar" aria-hidden="true"></span>
@@ -934,7 +1069,21 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 <div id="mapControlRow" class="map-control-row" aria-label="Map controls row">
   <div id="toolBox" class="tool-box" aria-label="Map tools"><span class="tool-label">TOOLS</span><button class="tool-btn" id="toolMeasure" title="Measure distance">RULER</button><button class="tool-btn" id="toolProbe" title="Pixel query / probe">PROBE</button><button class="tool-btn" id="toolDraw" title="Teacher telestrator">DRAW</button><button class="tool-btn" id="toolErase" title="Erase drawings">ERASE</button><button class="tool-btn" id="toolHome" title="Reset view">HOME</button></div>
   <div id="zoomBox" class="zoom-box" aria-label="Zoom controls"><span class="zoom-label">ZOOM</span><button class="zoom-btn" id="zoomMinus" title="Zoom out">−</button><button class="zoom-btn" id="zoomPlus" title="Zoom in">+</button></div>
+
 </div>
+
+<!-- Custom zoom buttons in lower-right corner -->
+<div id="zoomCorner" class="zoom-corner" aria-label="Zoom controls">
+  <button class="zoom-corner-btn" id="zoomCornerMinus" title="Zoom out">−</button>
+  <button class="zoom-corner-btn" id="zoomCornerPlus" title="Zoom in">+</button>
+</div>
+
+<!-- Master clock bubble (floats above layer toggle box) -->
+<div id="clockBubble" class="clock-bubble" aria-label="Time">
+  <div class="cb-label">TIME</div>
+  <div class="cb-time" id="clockBubbleTime">—</div>
+</div>
+
 <div id="stormScienceGuide" aria-label="Weather Discovery Terms">
   <div class="ssg-head">
     <div class="ssg-title">Weather Discovery Terms</div>
@@ -980,6 +1129,11 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
     <div class="banner-product" aria-label="Product shown">
         <div class="product-center" id="productLabel">RADAR</div>
       </div>
+        <div id="bannerLegend" class="banner-legend-under" aria-label="Radar legend">
+          <span class="leg-mini-label">Light</span>
+          <span class="leg-mini-bar" aria-hidden="true"></span>
+          <span class="leg-mini-label">Heavy</span>
+        </div>
   </div>
   <div class="bl-right">
     <button class="bbtn" id="stormScienceGuideBtn" title="Weather Discovery Terms">WEATHER DISCOVERY TERMS</button>
@@ -1063,6 +1217,17 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
   // ---------- Map ----------
   var map = L.map("map", { zoomControl:true }).setView([43.55, -96.73], 6);
+
+  // Custom lower-right zoom buttons
+  var zoomCornerPlus = document.getElementById('zoomCornerPlus');
+  var zoomCornerMinus = document.getElementById('zoomCornerMinus');
+  if (zoomCornerPlus) zoomCornerPlus.onclick = function(){ map.zoomIn(); };
+  if (zoomCornerMinus) zoomCornerMinus.onclick = function(){ map.zoomOut(); };
+
+  // Keep the clock bubble pinned above the layer control
+  window.addEventListener('resize', function(){ setTimeout(positionClockBubble, 50); });
+  setTimeout(positionClockBubble, 300);
+
 
   // Custom zoom box buttons (top-right)
   var zoomPlus = document.getElementById("zoomPlus");
@@ -3713,8 +3878,30 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
 
   // ---------- Updaters ----------
   function setStatus(s){ /* hidden */ }
+
+  function positionClockBubble(){
+    try{
+      var bubble = document.getElementById("clockBubble");
+      if (!bubble) return;
+      var ctrl = document.querySelector(".leaflet-control-layers");
+      if (!ctrl) return;
+      var rect = ctrl.getBoundingClientRect();
+      // Place bubble just above the layers control, aligned to its right edge
+      var top = Math.max(86, rect.top - bubble.offsetHeight - 10);
+      var rightGap = Math.max(10, window.innerWidth - rect.right);
+      bubble.style.top = top + "px";
+      bubble.style.right = (rightGap) + "px";
+    }catch(e){}
+  }
+
+
   function setTimeLabel(){
-    document.getElementById("bannerTimeLabel").textContent = formatCentralLabel(curZ);
+    var label = formatCentralLabel(curZ);
+    var btl = document.getElementById("bannerTimeLabel");
+    if (btl) btl.textContent = label;
+    var cbt = document.getElementById("clockBubbleTime");
+    if (cbt) cbt.textContent = label;
+    positionClockBubble();
   }
 
   function updateProductLabel(){

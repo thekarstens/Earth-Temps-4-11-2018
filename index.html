@@ -850,14 +850,32 @@ html, body { height:100%; margin:0; }
 
   // Kick off loading in the background (won't break anything if missing)
   loadUsStatesGeoJSONOnce();
-  // Clean base map (no labels)
-  var base = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
-    { attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains:"abcd", maxZoom: 19 }
-  ).addTo(map);
+  // Clean base map (no labels) — light gray (white/gray land, low clutter)
+var base = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+  { attribution: "Tiles © Esri", maxZoom: 19 }
+).addTo(map);
 
-  
-  // --- Extra Midwest city labels (shows more as you zoom in) ---
+// Optional: major highways / interstates reference (kept subtle, only when zoomed in enough)
+var highways = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
+  { attribution: "", maxZoom: 19, opacity: 0.55 }
+);
+
+function updateHighways(){
+  var z = map.getZoom();
+  // Show interstates when you're in the regional view and closer
+  if (z >= 5){
+    if (!map.hasLayer(highways)) highways.addTo(map);
+  } else {
+    if (map.hasLayer(highways)) map.removeLayer(highways);
+  }
+}
+map.on("zoomend", updateHighways);
+map.on("moveend", updateHighways);
+updateHighways();
+
+// --- Extra Midwest city labels (shows more as you zoom in) ---
   var cityLabelLayer = L.layerGroup().addTo(map);
 
   // --- Wide-view national city labels (decluttered) ---
@@ -935,7 +953,7 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
   ];
 
   var CITIES_TIER2 = [
-    ["Fargo", 46.8772, -96.7898],
+["Fargo", 46.8772, -96.7898],
     ["Bismarck", 46.8083, -100.7837],
     ["Pierre", 44.3683, -100.3510],
     ["Brookings", 44.3114, -96.7984],
@@ -946,7 +964,15 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
     ["St. Louis", 38.6270, -90.1994],
     ["Madison", 43.0731, -89.4012],
     ["Milwaukee", 43.0389, -87.9065],
-    ["Chicago", 41.8781, -87.6298]
+    ["Chicago", 41.8781, -87.6298],
+    ["Grand Forks", 47.9253, -97.0329],
+    ["Minot", 48.2325, -101.2963],
+    ["Williston", 48.1469, -103.6179],
+    ["Dickinson", 46.8792, -102.7896],
+    ["Helena", 46.5884, -112.0245],
+    ["Great Falls", 47.5053, -111.3008],
+    ["Bozeman", 45.677, -111.0429],
+    ["Kalispell", 48.1958, -114.3129]
   ];
 
   function updateCityLabels(){

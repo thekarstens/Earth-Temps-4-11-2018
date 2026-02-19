@@ -825,10 +825,6 @@ html, body { height:100%; margin:0; }
             return { color:"#000000", weight: 1.2, opacity: 1.0, fillOpacity: 0 };
           }
         });
-        
-        // Build wide-view state label cache
-        buildStateLabelCacheFromGeoJSON(geojson);
-        updateStateLabels();
 // If user already has HRRR temp on, add immediately
         if (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)) addStateLines();
       })
@@ -856,7 +852,7 @@ html, body { height:100%; margin:0; }
   loadUsStatesGeoJSONOnce();
   // Clean base map (no labels)
   var base = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
     { attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains:"abcd", maxZoom: 19 }
   ).addTo(map);
 
@@ -864,56 +860,57 @@ html, body { height:100%; margin:0; }
   // --- Extra Midwest city labels (shows more as you zoom in) ---
   var cityLabelLayer = L.layerGroup().addTo(map);
 
-  // --- Wide-view state labels (adds 1 label per state at zoomed-out views) ---
-  // Uses the same US states GeoJSON you already load (gz_2010_us_040_00_5m.json).
-  // Goal: make the wide CONUS view feel less empty without cluttering the mid/close zooms.
-  var stateLabelLayer = L.layerGroup().addTo(map);
-  var stateLabelCache = null; // [{lat, lon, text}]
+  // --- Wide-view national city labels (decluttered) ---
+// Shows a handful of major US cities when zoomed out, without crowding.
+var nationalCityLayer = L.layerGroup().addTo(map);
 
-  function buildStateLabelCacheFromGeoJSON(geojson){
-    try{
-      var feats = (geojson && geojson.features) ? geojson.features : [];
-      var out = [];
-      feats.forEach(function(f){
-        if (!f || !f.geometry) return;
-        // Compute center from bounds (fast enough, and we only do this once)
-        var b = L.geoJSON(f).getBounds();
-        if (!b || !b.isValid || !b.isValid()) return;
-        var c = b.getCenter();
+// A curated list of major cities across the US (name, lat, lon)
+// You can add/remove freely.
+var NATIONAL_CITIES = [
+  ["Seattle", 47.6062, -122.3321],
+  ["Portland", 45.5152, -122.6784],
+  ["San Francisco", 37.7749, -122.4194],
+  ["Los Angeles", 34.0522, -118.2437],
+  ["San Diego", 32.7157, -117.1611],
+  ["Las Vegas", 36.1699, -115.1398],
+  ["Phoenix", 33.4484, -112.0740],
+  ["Denver", 39.7392, -104.9903],
+  ["Dallas", 32.7767, -96.7970],
+  ["Houston", 29.7604, -95.3698],
+  ["Minneapolis", 44.9778, -93.2650],
+  ["Chicago", 41.8781, -87.6298],
+  ["St. Louis", 38.6270, -90.1994],
+  ["Nashville", 36.1627, -86.7816],
+  ["Atlanta", 33.7490, -84.3880],
+  ["Miami", 25.7617, -80.1918],
+  ["Washington, DC", 38.9072, -77.0369],
+  ["Philadelphia", 39.9526, -75.1652],
+  ["New York", 40.7128, -74.0060],
+  ["Boston", 42.3601, -71.0589]
+];
 
-        var p = f.properties || {};
-        var abbr = p.STUSPS || p.STUSPS10 || p.USPS || "";
-        var name = p.NAME || p.NAME10 || p.name || "";
-        // Prefer full state name on the wide view. Avoid numeric FIPS codes.
-        var txt = "";
-        if (name) txt = String(name);
-        else if (abbr && isNaN(Number(abbr))) txt = String(abbr);
-        else txt = "";
-        if (!txt) return;
+function addDeclutteredCityLabels(layer, cityList, minPx){
+  layer.clearLayers();
+  var b = map.getBounds();
+  var placed = []; // container points
+  for (var i=0; i<cityList.length; i++){
+    var name = cityList[i][0], lat = cityList[i][1], lon = cityList[i][2];
+    var ll = L.latLng(lat, lon);
+    if (!b.contains(ll)) continue;
 
-        out.push({ lat: c.lat, lon: c.lng, text: txt });
-      });
-      stateLabelCache = out;
-    }catch(e){
-      stateLabelCache = null;
+    var pt = map.latLngToContainerPoint(ll);
+    var ok = true;
+    for (var j=0; j<placed.length; j++){
+      var dx = pt.x - placed[j].x;
+      var dy = pt.y - placed[j].y;
+      if (Math.sqrt(dx*dx + dy*dy) < minPx) { ok = false; break; }
     }
+    if (!ok) continue;
+
+    placed.push(pt);
+    layer.addLayer(makeCityLabel(name, lat, lon));
   }
-
-  function updateStateLabels(){
-    // Only show when zoomed out; hide automatically as you zoom in.
-    var z = map.getZoom();
-    stateLabelLayer.clearLayers();
-
-    if (z > 4) return; // hide at closer zooms
-    if (!stateLabelCache || !stateLabelCache.length) return;
-
-    stateLabelCache.forEach(function(s){
-      stateLabelLayer.addLayer(L.marker([s.lat, s.lon], {
-        interactive: false,
-        icon: L.divIcon({ className:"town-label", html: s.text, iconSize: null })
-      }));
-    });
-  }
+}
 
 
   function makeCityLabel(name, lat, lon){
@@ -956,36 +953,48 @@ html, body { height:100%; margin:0; }
     var z = map.getZoom();
     cityLabelLayer.clearLayers();
 
-    if (z >= 4){
+    // 1) Wide CONUS view: show decluttered major US cities
+    if (z <= 4){
+      // tighter spacing at the very wide view
+      var minPx = (z <= 3) ? 95 : 75;
+      addDeclutteredCityLabels(nationalCityLayer, NATIONAL_CITIES, minPx);
+    } else {
+      nationalCityLayer.clearLayers();
+    }
+
+    // 2) Midwest teaching cities: fill in as you zoom closer
+    if (z >= 5){
       CITIES_TIER1.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
     }
-    if (z >= 6){
+    if (z >= 7){
       CITIES_TIER2.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
     }
   }
-  map.on("zoomend", updateCityLabels);
-  map.on("zoomend", updateStateLabels);
-  updateCityLabels();
-  updateStateLabels();
 
+  // Update labels as you zoom/pan
+  map.on("zoomend", updateCityLabels);
+  map.on("moveend", updateCityLabels);
+  updateCityLabels();
+
+// Optional labels
 // Optional labels (kept on top to help students)
   var labels = L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
     { attribution: "", subdomains:"abcd", maxZoom: 19, pane: "overlayPane" }
-  ).addTo(map);
+  );
 
-  // Town labels
-  function addTown(name, lat, lon){
-    L.marker([lat, lon], {
-      icon: L.divIcon({ className:"town-label", html: name, iconSize: null }),
-      interactive:false
-    }).addTo(map);
+  function updateBaseLabels(){
+    var z = map.getZoom();
+    // Only show built-in labels when VERY zoomed in (roughly ~100 miles across)
+    if (z >= 8){
+      if (!map.hasLayer(labels)) labels.addTo(map);
+    } else {
+      if (map.hasLayer(labels)) map.removeLayer(labels);
+    }
   }
-addTown("Omaha", 41.2565, -95.9345);
-  addTown("Des Moines", 41.5868, -93.6250);
-  addTown("Minneapolis", 44.9778, -93.2650);
-  addTown("Kansas City", 39.0997, -94.5786);
-  addTown("St. Louis", 38.6270, -90.1994);
+  map.on("zoomend", updateBaseLabels);
+  map.on("moveend", updateBaseLabels);
+  updateBaseLabels();
 
 
   // ---------- Story (Google Sheet) ----------

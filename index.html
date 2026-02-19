@@ -644,8 +644,28 @@ html, body { height:100%; margin:0; }
     <span class="leg-mini-bar" aria-hidden="true"></span>
     <span class="leg-mini-label">Heavy</span>
   </div>
+
 </div>
-<div id="storyPanel" aria-label="Story panel">
+<div id="goesControls" class="map-legend" style="left:10px; right:auto; bottom:70px; display:none; width:280px;" title="GOES controls">
+  <div class="map-legend-row" style="justify-content:space-between;">
+    <span class="leg-mini-label">GOES</span>
+    <span id="goesFrameLabel" class="leg-mini-label" style="opacity:.85; font-weight:800;">—</span>
+  </div>
+  <div class="map-legend-row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+    <button class="btn" id="goesPlayBtn" style="flex:1;">Play</button>
+    <button class="btn" id="goesPauseBtn" style="flex:1;">Pause</button>
+  </div>
+  <div class="map-legend-row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+    <button class="btn" id="goesFitBtn" style="flex:1;">Fit</button>
+    <button class="btn" id="goesSaveBtn" style="flex:1;">Save</button>
+    <button class="btn" id="goesResetBtn" style="flex:1;">Reset</button>
+  </div>
+  <div class="tiny" style="margin-top:6px; opacity:.85;">
+    Tip: Click <b>Fit</b> then drag SW/NE corners. <b>Save</b> stores the fit on this device.
+  </div>
+</div>
+<div id="storyPanel"
+ aria-label="Story panel">
   <div class="story-head">
   <div class="story-title" id="storyTitle">Guide</div>
   <div class="story-actions">
@@ -1208,7 +1228,36 @@ if (radarOpacity){
 }
 
 
-  // Story UI buttons
+  
+// GOES control buttons
+var goesPlayBtn  = document.getElementById("goesPlayBtn");
+var goesPauseBtn = document.getElementById("goesPauseBtn");
+var goesFitBtn   = document.getElementById("goesFitBtn");
+var goesSaveBtn  = document.getElementById("goesSaveBtn");
+var goesResetBtn = document.getElementById("goesResetBtn");
+
+if (goesPlayBtn) goesPlayBtn.onclick = function(){
+  // If frames didn't load (CORS), this will just keep the current frame.
+  playGoesAnim(400);
+};
+if (goesPauseBtn) goesPauseBtn.onclick = function(){
+  stopGoesAnim();
+};
+if (goesFitBtn) goesFitBtn.onclick = function(){
+  enableGoesFitMode(!goesFitMode);
+  // Make sure overlay is visible while fitting
+  if (goesEnabled) updateGoes();
+};
+if (goesSaveBtn) goesSaveBtn.onclick = function(){
+  saveBoundsToStorage(GOES_BOUNDS);
+  stopGoesAnim(); // optional, keeps kids from moving it while saving
+};
+if (goesResetBtn) goesResetBtn.onclick = function(){
+  try{ localStorage.removeItem(GOES_STORAGE_KEY); }catch(e){}
+  setGoesBounds(GOES_DEFAULT_BOUNDS);
+  if (goesEnabled) updateGoes();
+};
+// Story UI buttons
 
   
   var storyCloseBtn = document.getElementById("storyCloseBtn");
@@ -1346,26 +1395,210 @@ if (radarOpacity){
   
   
   
-  // GOES satellite PNG overlay (static image)
-  // Expected file in repo: goes_satellite_image.png (or update GOES_IMAGE_URL below)
-  var GOES_IMAGE_URL = "goes_satellite_image.png";
-  // Leaflet expects [[south, west], [north, east]] (lat/lon)
-  var GOES_BOUNDS = L.latLngBounds(L.latLng(-80.0, -150.0), L.latLng(80.0, -20.0));
+  // ---------- GOES (mtarchive JPG loop) ----------
+  // Source directory (GOES-16 ABI band 1, northcentral sector)
+  // We'll fetch 000index.txt for the frame list and animate by swapping the overlay URL.
+  var GOES_BASE_URL = "https://mtarchive.geol.iastate.edu/2018/04/14/cod/sat/goes16/regional/northcentral/abi01/";
+  var GOES_INDEX_URL = GOES_BASE_URL + "000index.txt";
+
+  // Default guess for the "northcentral" sector bounds (you will tune with Fit mode).
+  // Saved bounds (if you hit Save) will override these.
+  var GOES_DEFAULT_BOUNDS = L.latLngBounds(
+    L.latLng(35.0, -110.0), // SW
+    L.latLng(55.0,  -80.0)  // NE
+  );
+
+  var GOES_STORAGE_KEY = "goes_bounds_northcentral_abi01_v1";
+  var GOES_BOUNDS = GOES_DEFAULT_BOUNDS;
+
   var goesOverlay = null;
   var goesEnabled = false;
 
-  function ensureGoesOverlay(){
+  var goesFrames = [];     // ["northcentral_01_20180414000222.jpg", ...]
+  var goesFrameIdx = 0;
+  var goesTimer = null;
+  var goesFitMode = false;
+
+  var goesFitSW = null; // draggable marker
+  var goesFitNE = null; // draggable marker
+
+  function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+  function parseBoundsFromStorage(){
+    try{
+      var raw = localStorage.getItem(GOES_STORAGE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || !obj.sw || !obj.ne) return null;
+      var sw = L.latLng(obj.sw[0], obj.sw[1]);
+      var ne = L.latLng(obj.ne[0], obj.ne[1]);
+      return L.latLngBounds(sw, ne);
+    }catch(e){ return null; }
+  }
+
+  function saveBoundsToStorage(bounds){
+    try{
+      var sw = bounds.getSouthWest();
+      var ne = bounds.getNorthEast();
+      localStorage.setItem(GOES_STORAGE_KEY, JSON.stringify({
+        sw: [sw.lat, sw.lng],
+        ne: [ne.lat, ne.lng]
+      }));
+    }catch(e){}
+  }
+
+  function setGoesBounds(bounds){
+    GOES_BOUNDS = bounds;
+    if (goesOverlay) goesOverlay.setBounds(GOES_BOUNDS);
+
+    // Update fit markers, if active
+    if (goesFitSW) goesFitSW.setLatLng(GOES_BOUNDS.getSouthWest());
+    if (goesFitNE) goesFitNE.setLatLng(GOES_BOUNDS.getNorthEast());
+  }
+
+  function getGoesFrameUrl(){
+    if (!goesFrames.length) return null;
+    var fname = goesFrames[goesFrameIdx % goesFrames.length];
+    return GOES_BASE_URL + fname;
+  }
+
+  function setGoesFrame(i){
+    if (!goesFrames.length) return;
+    goesFrameIdx = (i + goesFrames.length) % goesFrames.length;
+    var url = getGoesFrameUrl();
+    if (!url) return;
     if (!goesOverlay){
-      goesOverlay = L.imageOverlay(GOES_IMAGE_URL, GOES_BOUNDS, { opacity: productOpacity.goes || 0.70, interactive:false });
+      goesOverlay = L.imageOverlay(url, GOES_BOUNDS, { opacity: productOpacity.goes || 0.70, interactive:false });
+    } else {
+      goesOverlay.setUrl(url);
+      goesOverlay.setBounds(GOES_BOUNDS);
+    }
+
+    // Update UI label
+    var lbl = document.getElementById("goesFrameLabel");
+    if (lbl){
+      lbl.textContent = (goesFrames[goesFrameIdx] || "—").replace(".jpg","");
     }
   }
+
+  function stopGoesAnim(){
+    if (goesTimer) clearInterval(goesTimer);
+    goesTimer = null;
+  }
+
+  function playGoesAnim(ms){
+    stopGoesAnim();
+    goesTimer = setInterval(function(){
+      if (!goesEnabled) return;
+      setGoesFrame(goesFrameIdx + 1);
+    }, ms || 400);
+  }
+
+  function ensureGoesFramesLoaded(){
+    if (goesFrames.length) return Promise.resolve(true);
+
+    return fetch(GOES_INDEX_URL + "?v=" + Date.now())
+      .then(function(r){
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function(txt){
+        goesFrames = (txt || "")
+          .split(/\s+/)
+          .map(function(s){ return String(s).trim(); })
+          .filter(function(s){ return s && s.toLowerCase().endsWith(".jpg"); });
+
+        // If the directory list includes non-frames, keep only "northcentral_01_*.jpg"
+        goesFrames = goesFrames.filter(function(s){ return s.indexOf("northcentral_01_") === 0; });
+
+        if (!goesFrames.length) throw new Error("No JPG frames found in 000index.txt");
+        setGoesFrame(0);
+        return true;
+      })
+      .catch(function(err){
+        console.warn("GOES frames not loaded. If you see CORS errors, download the JPGs into your repo instead.", err);
+        // Fall back to a single known file name pattern (best effort)
+        // You can replace this with your own list later.
+        goesFrames = [];
+        return false;
+      });
+  }
+
+  function ensureGoesOverlay(){
+    // Load saved bounds if present
+    var saved = parseBoundsFromStorage();
+    if (saved) GOES_BOUNDS = saved;
+
+    // Create overlay with first frame (or a placeholder)
+    if (!goesOverlay){
+      var url = getGoesFrameUrl() || (GOES_BASE_URL + "northcentral_01_20180414000222.jpg");
+      goesOverlay = L.imageOverlay(url, GOES_BOUNDS, { opacity: productOpacity.goes || 0.70, interactive:false });
+    }
+  }
+
+  function enableGoesFitMode(on){
+    goesFitMode = !!on;
+
+    if (!goesFitMode){
+      if (goesFitSW){ map.removeLayer(goesFitSW); goesFitSW = null; }
+      if (goesFitNE){ map.removeLayer(goesFitNE); goesFitNE = null; }
+      return;
+    }
+
+    // Create draggable corner markers (SW and NE)
+    var sw = GOES_BOUNDS.getSouthWest();
+    var ne = GOES_BOUNDS.getNorthEast();
+
+    var mkStyle = {
+      draggable: true,
+      autoPan: false,
+      icon: L.divIcon({
+        className: "",
+        html: "<div style='width:14px;height:14px;border-radius:10px;background:#fdd835;border:2px solid rgba(0,0,0,.55);box-shadow:0 6px 16px rgba(0,0,0,.25)'></div>",
+        iconSize: [14,14],
+        iconAnchor: [7,7]
+      })
+    };
+
+    goesFitSW = L.marker(sw, mkStyle).addTo(map).bindTooltip("SW", {permanent:true, direction:"right", className:"tv-city-label"});
+    goesFitNE = L.marker(ne, mkStyle).addTo(map).bindTooltip("NE", {permanent:true, direction:"left", className:"tv-city-label"});
+
+    function onDrag(){
+      if (!goesFitSW || !goesFitNE) return;
+      var sw2 = goesFitSW.getLatLng();
+      var ne2 = goesFitNE.getLatLng();
+
+      // Normalize so SW is truly SW
+      var south = Math.min(sw2.lat, ne2.lat);
+      var north = Math.max(sw2.lat, ne2.lat);
+      var west  = Math.min(sw2.lng, ne2.lng);
+      var east  = Math.max(sw2.lng, ne2.lng);
+
+      setGoesBounds(L.latLngBounds(L.latLng(south, west), L.latLng(north, east)));
+    }
+
+    goesFitSW.on("drag", onDrag);
+    goesFitNE.on("drag", onDrag);
+  }
+
   function updateGoes(){
     ensureGoesOverlay();
+
+    var box = document.getElementById("goesControls");
+    if (box) box.style.display = goesEnabled ? "block" : "none";
+
     if (goesEnabled){
-      if (!map.hasLayer(goesOverlay)) goesOverlay.addTo(map);
+      ensureGoesFramesLoaded().then(function(){
+        if (!map.hasLayer(goesOverlay)) goesOverlay.addTo(map);
+        // Show a frame immediately (in case frames loaded after enabling)
+        setGoesFrame(goesFrameIdx || 0);
+      });
     } else {
+      stopGoesAnim();
+      enableGoesFitMode(false);
       if (goesOverlay && map.hasLayer(goesOverlay)) map.removeLayer(goesOverlay);
     }
+  }
   }
 // Fronts + highs/lows overlay (GeoJSON you upload)
   // Expected file in repo root: fronts.geojson
@@ -2328,6 +2561,13 @@ window._jetParticlesOverlayEnabled = false;
 
 map.on("overlayadd", function(e){
   try{
+    // --- GOES (mtarchive) ---
+    if (e && e.name === "GOES Satellite"){
+      goesEnabled = true;
+      updateGoes();
+      syncOpacitySliderToActive();
+      return;
+    }
     if (e && e.name === "Jet Stream (250mb) – Particles"){
       window._jetParticlesOverlayEnabled = true;
       // Prefer animation frame 0 if available; otherwise snapshot
@@ -2342,6 +2582,13 @@ map.on("overlayadd", function(e){
 
 map.on("overlayremove", function(e){
   try{
+    // --- GOES (mtarchive) ---
+    if (e && e.name === "GOES Satellite"){
+      goesEnabled = false;
+      updateGoes();
+      syncOpacitySliderToActive();
+      return;
+    }
     if (e && e.name === "Jet Stream (250mb) – Particles"){
       window._jetParticlesOverlayEnabled = false;
       jetAnimPause();

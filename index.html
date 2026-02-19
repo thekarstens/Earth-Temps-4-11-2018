@@ -936,7 +936,31 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
     ["Rapid City", 44.0805, -103.2310],
     ["Denver", 39.7392, -104.9903]
   ];
-  var CITIES_TIER3 = [
+  
+  var CITIES_TIER2 = [
+    ["Fargo", 46.8772, -96.7898],
+    ["Bismarck", 46.8083, -100.7837],
+    ["Grand Forks", 47.9253, -97.0329],
+    ["Minot", 48.2325, -101.2963],
+    ["Williston", 48.1469, -103.6180],
+    ["Dickinson", 46.8792, -102.7896],
+    ["Billings", 45.7833, -108.5007],
+    ["Missoula", 46.8721, -113.9940],
+    ["Helena", 46.5884, -112.0245],
+    ["Great Falls", 47.5053, -111.3008],
+    ["Bozeman", 45.6770, -111.0429],
+    ["Kalispell", 48.1958, -114.3129],
+    ["Brookings", 44.3114, -96.7984],
+    ["Watertown", 44.8994, -97.1151],
+    ["Huron", 44.3633, -98.2143],
+    ["Sioux City", 42.4990, -96.4003],
+    ["Mankato", 44.1636, -93.9994],
+    ["Rochester", 44.0121, -92.4802],
+    ["Aberdeen", 45.4647, -98.4865],
+    ["Pierre", 44.3683, -100.3509]
+  ];
+
+var CITIES_TIER3 = [
     ["Mitchell", 43.7094, -98.0298],
     ["Yankton", 42.8711, -97.3973],
     ["Vermillion", 42.7794, -96.9292],
@@ -948,37 +972,90 @@ function addDeclutteredCityLabels(layer, cityList, minPx){
     ["Norfolk", 42.0327, -97.4170]
   ];
 function updateCityLabels(){
-    var z = map.getZoom();
+  var z = map.getZoom();
 
-    // When we're very zoomed-in, let the basemap labels do the work (less clutter).
-    if (z >= 10){
-      cityLabelLayer.clearLayers();
-      nationalCityLayer.clearLayers();
-      return;
-    }
-
+  // When we're VERY zoomed-in, let the basemap labels do the work (less clutter).
+  if (z >= 11){
     cityLabelLayer.clearLayers();
-
-    // 1) Wide CONUS view: show decluttered major US cities (keep them on a bit longer)
-    if (z <= 5){
-      // tighter spacing at the very wide view, slightly looser as you zoom in
-      var minPx = (z <= 3) ? 95 : (z === 4 ? 80 : 70);
-      addDeclutteredCityLabels(nationalCityLayer, NATIONAL_CITIES, minPx);
-    } else {
-      nationalCityLayer.clearLayers();
-    }
-
-    // 2) Midwest teaching cities: fill in as you zoom closer
-    if (z >= 5){
-      CITIES_TIER1.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
-    }
-    if (z >= 7){
-      CITIES_TIER2.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
-    }
-    if (z >= 8){
-      CITIES_TIER3.forEach(function(c){ cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2])); });
-    }
+    nationalCityLayer.clearLayers();
+    return;
   }
+
+  cityLabelLayer.clearLayers();
+
+  // 1) Wide CONUS view: show decluttered major US cities (sparse)
+  if (z <= 4){
+    var minPxNat = (z <= 2) ? 125 : (z === 3 ? 105 : 90);
+    addDeclutteredCityLabels(nationalCityLayer, NATIONAL_CITIES, minPxNat);
+  } else {
+    nationalCityLayer.clearLayers();
+  }
+
+  // 2) Regional "bubble" cities: phase in gradually + declutter to avoid crowding
+  // Tier 1 (regional anchors) at zoom 5+
+  if (z >= 5){
+    var minPx1 = (z === 5) ? 70 : 55;
+    addDeclutteredCityLabels(cityLabelLayer, CITIES_TIER1, minPx1);
+  }
+  // Tier 2 (regional fill) at zoom 6+
+  if (z >= 6){
+    var minPx2 = (z === 6) ? 50 : 40;
+    // add on top of existing; do not clear
+    (function(){
+      var b = map.getBounds();
+      var placed = [];
+      // seed placed with existing labels to prevent overlaps
+      cityLabelLayer.eachLayer(function(layer){
+        if (layer.getLatLng){
+          placed.push(map.latLngToContainerPoint(layer.getLatLng()));
+        }
+      });
+      for (var i=0; i<CITIES_TIER2.length; i++){
+        var c = CITIES_TIER2[i];
+        var ll = L.latLng(c[1], c[2]);
+        if (!b.contains(ll)) continue;
+        var pt = map.latLngToContainerPoint(ll);
+        var ok = true;
+        for (var j=0; j<placed.length; j++){
+          var dx = pt.x - placed[j].x;
+          var dy = pt.y - placed[j].y;
+          if (Math.sqrt(dx*dx + dy*dy) < minPx2){ ok = false; break; }
+        }
+        if (!ok) continue;
+        placed.push(pt);
+        cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2]));
+      }
+    })();
+  }
+  // Tier 3 (local 150-mi-ish) at zoom 8+
+  if (z >= 8){
+    var minPx3 = (z === 8) ? 32 : 26;
+    (function(){
+      var b = map.getBounds();
+      var placed = [];
+      cityLabelLayer.eachLayer(function(layer){
+        if (layer.getLatLng){
+          placed.push(map.latLngToContainerPoint(layer.getLatLng()));
+        }
+      });
+      for (var i=0; i<CITIES_TIER3.length; i++){
+        var c = CITIES_TIER3[i];
+        var ll = L.latLng(c[1], c[2]);
+        if (!b.contains(ll)) continue;
+        var pt = map.latLngToContainerPoint(ll);
+        var ok = true;
+        for (var j=0; j<placed.length; j++){
+          var dx = pt.x - placed[j].x;
+          var dy = pt.y - placed[j].y;
+          if (Math.sqrt(dx*dx + dy*dy) < minPx3){ ok = false; break; }
+        }
+        if (!ok) continue;
+        placed.push(pt);
+        cityLabelLayer.addLayer(makeCityLabel(c[0], c[1], c[2]));
+      }
+    })();
+  }
+}
 
   // Update labels as you zoom/pan
   map.on("zoomend", updateCityLabels);
@@ -994,8 +1071,8 @@ function updateCityLabels(){
 
   function updateBaseLabels(){
     var z = map.getZoom();
-    // Only show built-in labels when VERY zoomed in (roughly ~100 miles across)
-    if (z >= 10){
+    // Only show built-in labels when EXTREMELY zoomed in (local view)
+    if (z >= 11){
       if (!map.hasLayer(labels)) labels.addTo(map);
     } else {
       if (map.hasLayer(labels)) map.removeLayer(labels);
@@ -2356,9 +2433,9 @@ function renderJetPoints(){
   var minMph = 120;
   if (z >= 6) minMph = 100;
   if (z >= 7) minMph = 85;
-  if (z >= 10) minMph = 70;
+  if (z >= 11) minMph = 70;
   if (z >= 9) minMph = 55;
-  if (z >= 10) minMph = 40;
+  if (z >= 11) minMph = 40;
   if (z >= 11) minMph = 25;
 
   // Grid size (degrees). Smaller cells as you zoom in.
@@ -2367,18 +2444,18 @@ function renderJetPoints(){
   if (z >= 5)  cell = 4.0;
   if (z >= 6)  cell = 2.5;
   if (z >= 7)  cell = 1.6;
-  if (z >= 10)  cell = 1.0;
+  if (z >= 11)  cell = 1.0;
   if (z >= 9)  cell = 0.65;
-  if (z >= 10) cell = 0.45;
+  if (z >= 11) cell = 0.45;
   if (z >= 11) cell = 0.30;
 
   // Dot radius: subtle when zoomed out, more readable when zoomed in.
   var r = 2.5;
   if (z >= 6) r = 3.0;
   if (z >= 7) r = 3.2;
-  if (z >= 10) r = 3.6;
+  if (z >= 11) r = 3.6;
   if (z >= 9) r = 4.0;
-  if (z >= 10) r = 4.6;
+  if (z >= 11) r = 4.6;
   if (z >= 11) r = 5.2;
 
   // Keep the fastest point per grid cell

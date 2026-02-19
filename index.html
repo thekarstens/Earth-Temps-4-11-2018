@@ -183,7 +183,7 @@ html, body { height:100%; margin:0; }
   /* Custom zoom box above layer toggles (top-right) */
   .zoom-box{
     position:absolute;
-    top:92px;
+    top:140px;
     right:10px;
     z-index:100000;
     display:flex;
@@ -213,6 +213,44 @@ html, body { height:100%; margin:0; }
     line-height:1;
   }
   .zoom-btn:hover{ background:rgba(0,0,0,0.40); }
+
+  /* Map tools box (top-right, above layer toggles) */
+  .tool-box{
+    position:absolute;
+    top:188px;
+    right:10px;
+    z-index:100000;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:rgba(11,28,45,0.92);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:14px;
+    padding:8px 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+    user-select:none;
+  }
+  .tool-label{
+    font:900 11px/1 Arial, sans-serif;
+    letter-spacing:.8px;
+    color:#fff;
+    opacity:.92;
+  }
+  .tool-btn{
+    border:1px solid rgba(255,255,255,0.35);
+    background:rgba(0,0,0,0.25);
+    color:#fff;
+    padding:7px 10px;
+    border-radius:12px;
+    font:900 11px/1 Arial, sans-serif;
+    cursor:pointer;
+    line-height:1;
+    letter-spacing:.4px;
+  }
+  .tool-btn:hover{ background:rgba(0,0,0,0.40); }
+  .tool-btn.active{ background:#fdd835; color:#111; border-color: rgba(0,0,0,0.35); }
+  body.measure-active #map{ cursor: crosshair; }
+  body.probe-active #map{ cursor: crosshair; }
 
   /* Remove default Leaflet zoom buttons (we use custom zoom box) */
   .leaflet-control-zoom{ display:none !important; }
@@ -489,7 +527,7 @@ html, body { height:100%; margin:0; }
 
 
 .map-legend{
-  right:12px !important;
+  right:10px !important;
   bottom:70px !important;
   padding:7px 9px !important;
   border-radius:12px !important;
@@ -592,7 +630,7 @@ html, body { height:100%; margin:0; }
 
 
 /* Slightly tighter banner height (small) */
-.banner-topline{padding-top:8px !important; padding-bottom:5px !important;}
+.banner-topline{padding-top:6px !important; padding-bottom:5px !important;}
 .banner-bottomline{padding-top:3px !important; padding-bottom:7px !important;}
 
 
@@ -609,8 +647,9 @@ html, body { height:100%; margin:0; }
 
 /* --- Brand logo: smaller + lower --- */
 #brandLogo{
-  width:150px !important;
+  width:120px !important;
   height:auto !important;
+  max-height:64px !important;
   bottom:-24px !important;
   right:10px !important;
   opacity:0.95 !important;
@@ -790,10 +829,10 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 /* --- Brand logo in top-right of banner (no white box) --- */
 #brandLogo{
   position:absolute !important;
-  top:8px !important;
-  right:12px !important;
+  top:6px !important;
+  right:10px !important;
   bottom:auto !important;
-  width:150px !important;
+  width:120px !important;
   max-width:32vw !important;
   height:auto !important;
   padding:0 !important;
@@ -806,6 +845,19 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 }
 
 .banner-topline .topline-center{ padding-right: 170px !important; }
+
+
+/* --- Bottom line 3-column grid to keep product label truly centered --- */
+.bottomline-center{
+  display:grid !important;
+  grid-template-columns: 1fr auto 1fr;
+  align-items:center;
+  width:100%;
+  max-width:1200px;
+}
+.bl-left{justify-self:start;}
+.bl-center{justify-self:center;}
+.bl-right{justify-self:end;}
 
 </style>
 
@@ -861,13 +913,14 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 </div>
 <div id="storyTab" aria-label="Open lesson">OPEN LESSON</div>
 <div id="zoomBox" class="zoom-box" aria-label="Zoom controls"><span class="zoom-label">ZOOM</span><button class="zoom-btn" id="zoomMinus" title="Zoom out">−</button><button class="zoom-btn" id="zoomPlus" title="Zoom in">+</button></div>
-<div id="stormScienceGuide" aria-label="Storm Science Guide">
+<div id="toolBox" class="tool-box" aria-label="Map tools"><span class="tool-label">TOOLS</span><button class="tool-btn" id="toolMeasure" title="Measure distance">RULER</button><button class="tool-btn" id="toolProbe" title="Pixel query / probe">PROBE</button><button class="tool-btn" id="toolHome" title="Reset view">HOME</button></div>
+<div id="stormScienceGuide" aria-label="Weather Discovery Terms">
   <div class="ssg-head">
-    <div class="ssg-title">Storm Science Guide</div>
+    <div class="ssg-title">Weather Discovery Terms</div>
     <button class="ssg-close" id="ssgCloseBtn" title="Close">✕</button>
   </div>
 
-  <div class="ssg-tabs" role="tablist" aria-label="Storm Science Guide tabs">
+  <div class="ssg-tabs" role="tablist" aria-label="Weather Discovery Terms tabs">
     <button class="ssg-tab active" id="ssgTabScene" type="button">This Scene</button>
     <button class="ssg-tab" id="ssgTabAll" type="button">All Terms</button>
   </div>
@@ -894,18 +947,22 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
   <div class="banner-bottomline">
     <div class="bottomline-center">
-<button class="bbtn" id="modeBtn" title="Toggle Student / Teacher mode">STUDENT</button>
-<div class="banner-product" aria-label="Product shown">
-        <div class="product-center" id="productLabel">RADAR</div>
-      </div>
-
-      <div class="time-controls" aria-label="Time controls">
+  <div class="bl-left">
+    <div class="time-controls" aria-label="Time controls">
         <button class="bbtn" id="bBackBtn" title="Back 3 hours">◀</button>
         <div class="btime" id="bannerTimeLabel">April 14, 2018 7AM</div>
         <button class="bbtn" id="bFwdBtn" title="Forward 3 hours">▶</button>
       </div>
-<button class="bbtn" id="stormScienceGuideBtn" title="Storm Science Guide">STORM SCIENCE GUIDE</button>
-    </div>
+  </div>
+  <div class="bl-center">
+    <div class="banner-product" aria-label="Product shown">
+        <div class="product-center" id="productLabel">RADAR</div>
+      </div>
+  </div>
+  <div class="bl-right">
+    <button class="bbtn" id="stormScienceGuideBtn" title="Weather Discovery Terms">WEATHER DISCOVERY TERMS</button>
+  </div>
+</div>
   </div>
 
   <div id="status" class="bstatus" style="display:none;"></div>
@@ -990,6 +1047,121 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   var zoomMinus = document.getElementById("zoomMinus");
   if (zoomPlus) zoomPlus.onclick = function(){ map.zoomIn(); };
   if (zoomMinus) zoomMinus.onclick = function(){ map.zoomOut(); };
+
+  // Map tools (Ruler / Probe / Home)
+  var toolMeasureBtn = document.getElementById("toolMeasure");
+  var toolProbeBtn   = document.getElementById("toolProbe");
+  var toolHomeBtn    = document.getElementById("toolHome");
+
+  var measureStart = null;
+  var measureLine = null;
+  var measureStartMarker = null;
+  var measurePopup = null;
+
+  function clearMeasureGraphics(){
+    try{ if (measureLine) map.removeLayer(measureLine); }catch(e){}
+    try{ if (measureStartMarker) map.removeLayer(measureStartMarker); }catch(e){}
+    try{ if (measurePopup) map.closePopup(measurePopup); }catch(e){}
+    measureLine = null; measureStartMarker = null; measurePopup = null;
+    measureStart = null;
+  }
+
+  function setMeasureMode(on){
+    if (on){
+      document.body.classList.add("measure-active");
+      document.body.classList.remove("probe-active");
+      if (toolMeasureBtn) toolMeasureBtn.classList.add("active");
+      if (toolProbeBtn) toolProbeBtn.classList.remove("active");
+      clearMeasureGraphics();
+    } else {
+      document.body.classList.remove("measure-active");
+      if (toolMeasureBtn) toolMeasureBtn.classList.remove("active");
+      clearMeasureGraphics();
+    }
+  }
+
+  function setProbeMode(on){
+    if (on){
+      document.body.classList.add("probe-active");
+      document.body.classList.remove("measure-active");
+      if (toolProbeBtn) toolProbeBtn.classList.add("active");
+      if (toolMeasureBtn) toolMeasureBtn.classList.remove("active");
+      clearMeasureGraphics();
+    } else {
+      document.body.classList.remove("probe-active");
+      if (toolProbeBtn) toolProbeBtn.classList.remove("active");
+    }
+  }
+
+  function handleMeasureClick(e){
+    if (!measureStart){
+      measureStart = e.latlng;
+      clearMeasureGraphics();
+      measureStartMarker = L.circleMarker(measureStart, {
+        radius: 7, color: "rgba(255,255,255,0.95)", weight: 2,
+        fillColor: "rgba(253,216,53,0.95)", fillOpacity: 0.95
+      }).addTo(map);
+      return;
+    }
+    var end = e.latlng;
+    var meters = map.distance(measureStart, end);
+    var miles = meters / 1609.344;
+    var km = meters / 1000.0;
+
+    if (measureLine) { try{ map.removeLayer(measureLine); }catch(err){} }
+    measureLine = L.polyline([measureStart, end], { color: "rgba(253,216,53,0.95)", weight: 4, opacity: 0.95 }).addTo(map);
+
+    var mid = L.latLng((measureStart.lat + end.lat)/2, (measureStart.lng + end.lng)/2);
+    var txt = "<div style='font:900 16px/1.1 Arial,sans-serif'>Distance</div>" +
+              "<div style='font:900 18px/1.2 Arial,sans-serif'>" + miles.toFixed(1) + " mi</div>" +
+              "<div style='font:800 14px/1.2 Arial,sans-serif;opacity:.9'>" + km.toFixed(1) + " km</div>";
+    measurePopup = L.popup({ closeButton:true, className:"hrrr-popup" }).setLatLng(mid).setContent(txt).openOn(map);
+
+    // Ready for another measurement
+    measureStart = null;
+    if (measureStartMarker) { try{ map.removeLayer(measureStartMarker); }catch(err){} }
+    measureStartMarker = null;
+  }
+
+  function handleProbeClick(e){
+    // For now, this reuses the HRRR-style "nearest point" probe if hrrrPoints are available.
+    // Later we can expand to probe jet stream / ERA5 / GOES, etc.
+    if (typeof hrrrPoints === "undefined" || !Array.isArray(hrrrPoints) || !hrrrPoints.length){
+      L.popup({ closeButton:true, className:"hrrr-popup" })
+        .setLatLng(e.latlng)
+        .setContent("<div style='font:900 16px/1.1 Arial,sans-serif'>Probe</div><div style='font:800 14px/1.2 Arial,sans-serif'>Turn on a probe-ready layer (like HRRR Temp) first.</div>")
+        .openOn(map);
+      return;
+    }
+    var best = null, bestDist = Infinity;
+    for (var i=0; i<hrrrPoints.length; i++){
+      var p = hrrrPoints[i];
+      var d = L.latLng(e.latlng.lat, e.latlng.lng).distanceTo([p.lat, p.lon]);
+      if (d < bestDist){ bestDist = d; best = p; }
+    }
+    if (!best) return;
+    var val = (best.tF != null) ? Number(best.tF).toFixed(0) : "—";
+    L.popup({ closeButton:true, className:"hrrr-popup" })
+      .setLatLng(e.latlng)
+      .setContent("<div style='font:900 16px/1.1 Arial,sans-serif'>Probe</div><div style='font:900 22px/1.1 Arial,sans-serif'>" + val + "°F</div>")
+      .openOn(map);
+  }
+
+  if (toolMeasureBtn) toolMeasureBtn.onclick = function(){
+    var on = !document.body.classList.contains("measure-active");
+    setMeasureMode(on);
+  };
+  if (toolProbeBtn) toolProbeBtn.onclick = function(){
+    var on = !document.body.classList.contains("probe-active");
+    setProbeMode(on);
+  };
+  if (toolHomeBtn) toolHomeBtn.onclick = function(){
+    setMeasureMode(false); setProbeMode(false);
+    clearMeasureGraphics();
+    map.setView([43.55, -96.73], 6);
+  };
+
+
 
   // --- State boundaries / outlines (GeoJSON first; tile fallback) ---
   map.createPane("lines");
@@ -1439,6 +1611,7 @@ function safeLink(url){
           lon: isFinite(lon) ? lon : null,
           image: r.image || "",
           video: r.video || "",
+          terms: r.terms || "",
           order: parseFloat(r.order)
         };
       })
@@ -1625,6 +1798,9 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
 
 
   map.on("click", function(e){
+    if (document.body.classList.contains("measure-active")) { handleMeasureClick(e); return; }
+    if (document.body.classList.contains("probe-active")) { handleProbeClick(e); return; }
+
     var lp = document.getElementById("legendPop");
     if (lp) lp.classList.add("hidden");
 

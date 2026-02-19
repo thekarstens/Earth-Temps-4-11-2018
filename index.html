@@ -721,7 +721,7 @@ html, body { height:100%; margin:0; }
   <div id="status" class="bstatus" style="display:none;"></div>
 </div>
 
-<img id="brandLogo" src="./logo.png" alt="Weather Workshops" />
+<img id="brandLogo" src="./storm_science_lab_logo.png" alt="Weather Workshops" />
 <script>
 (function(){
   // ---------- Config ----------
@@ -825,7 +825,11 @@ html, body { height:100%; margin:0; }
             return { color:"#000000", weight: 1.2, opacity: 1.0, fillOpacity: 0 };
           }
         });
-        // If user already has HRRR temp on, add immediately
+        
+        // Build wide-view state label cache
+        buildStateLabelCacheFromGeoJSON(geojson);
+        updateStateLabels();
+// If user already has HRRR temp on, add immediately
         if (typeof hrrrTempLayer !== "undefined" && map.hasLayer(hrrrTempLayer)) addStateLines();
       })
       .catch(function(err){
@@ -859,6 +863,54 @@ html, body { height:100%; margin:0; }
   
   // --- Extra Midwest city labels (shows more as you zoom in) ---
   var cityLabelLayer = L.layerGroup().addTo(map);
+
+  // --- Wide-view state labels (adds 1 label per state at zoomed-out views) ---
+  // Uses the same US states GeoJSON you already load (gz_2010_us_040_00_5m.json).
+  // Goal: make the wide CONUS view feel less empty without cluttering the mid/close zooms.
+  var stateLabelLayer = L.layerGroup().addTo(map);
+  var stateLabelCache = null; // [{lat, lon, text}]
+
+  function buildStateLabelCacheFromGeoJSON(geojson){
+    try{
+      var feats = (geojson && geojson.features) ? geojson.features : [];
+      var out = [];
+      feats.forEach(function(f){
+        if (!f || !f.geometry) return;
+        // Compute center from bounds (fast enough, and we only do this once)
+        var b = L.geoJSON(f).getBounds();
+        if (!b || !b.isValid || !b.isValid()) return;
+        var c = b.getCenter();
+
+        var p = f.properties || {};
+        var abbr = p.STUSPS || p.STUSPS10 || p.USPS || p.STATE || "";
+        var name = p.NAME || p.name || "";
+        var txt = (abbr && String(abbr).length <= 4) ? String(abbr) : String(name);
+        if (!txt) return;
+
+        out.push({ lat: c.lat, lon: c.lng, text: txt });
+      });
+      stateLabelCache = out;
+    }catch(e){
+      stateLabelCache = null;
+    }
+  }
+
+  function updateStateLabels(){
+    // Only show when zoomed out; hide automatically as you zoom in.
+    var z = map.getZoom();
+    stateLabelLayer.clearLayers();
+
+    if (z > 4) return; // hide at closer zooms
+    if (!stateLabelCache || !stateLabelCache.length) return;
+
+    stateLabelCache.forEach(function(s){
+      stateLabelLayer.addLayer(L.marker([s.lat, s.lon], {
+        interactive: false,
+        icon: L.divIcon({ className:"town-label", html: s.text, iconSize: null })
+      }));
+    });
+  }
+
 
   function makeCityLabel(name, lat, lon){
     return L.marker([lat, lon], {
@@ -908,7 +960,9 @@ html, body { height:100%; margin:0; }
     }
   }
   map.on("zoomend", updateCityLabels);
+  map.on("zoomend", updateStateLabels);
   updateCityLabels();
+  updateStateLabels();
 
 // Optional labels (kept on top to help students)
   var labels = L.tileLayer(

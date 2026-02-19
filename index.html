@@ -6,8 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="./leaflet.css"/>
-<script src="./leaflet.js">
-
+<script src="./leaflet.js"></script>
+<script>
   function resolveJetFrameUrl(u){
     if (!u) return u;
     const dir = (typeof JET_ANIM_DIR !== "undefined") ? JET_ANIM_DIR : "jet_anim";
@@ -1599,7 +1599,7 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
       if (goesOverlay && map.hasLayer(goesOverlay)) map.removeLayer(goesOverlay);
     }
   }
-  }
+
 // Fronts + highs/lows overlay (GeoJSON you upload)
   // Expected file in repo root: fronts.geojson
   var frontsEnabled = false;

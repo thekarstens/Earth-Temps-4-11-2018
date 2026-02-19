@@ -394,6 +394,7 @@ html, body { height:100%; margin:0; }
 }
 
 .banner-topline{
+  width:100%;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -415,9 +416,9 @@ html, body { height:100%; margin:0; }
   max-width:1200px;
   width:100%;
 }
-.top-lesson{font-weight:900;font-size:26px;white-space:nowrap}
+.top-lesson{font-weight:900;font-size:26px;text-align:center}
 .top-sep{opacity:.65;font-weight:900}
-.top-question{font-weight:800;font-size:16px;letter-spacing:.2px;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;flex:1 1 100%;text-align:center}
+.top-question{font-weight:800;font-size:16px;letter-spacing:.2px;text-transform:none;max-width:100%;flex:1 1 100%;text-align:center}
 .top-q-label{font-weight:900;text-transform:uppercase;letter-spacing:.6px}
 
 .banner-bottomline{
@@ -498,6 +499,7 @@ html, body { height:100%; margin:0; }
 
 
 .banner-topline{
+  width:100%;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -1088,8 +1090,14 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
     if (on){
       document.body.classList.add("measure-active");
       document.body.classList.remove("probe-active");
-      
-  if (toolMeasureBtn) toolMeasureBtn.onclick = function(){
+      document.body.classList.remove("draw-active");
+    } else {
+      document.body.classList.remove("measure-active");
+      clearMeasureGraphics();
+    }
+  }
+
+if (toolMeasureBtn) toolMeasureBtn.onclick = function(){
     var on = !document.body.classList.contains("measure-active");
     setMeasureMode(on);
     if (on) setDrawMode(false);

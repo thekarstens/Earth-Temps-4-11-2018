@@ -110,7 +110,7 @@ html, body { height:100%; margin:0; }
 
 
   /* --- layout tweaks --- */
-  .leaflet-top.leaflet-right { margin-top: 90px; }   /* push layer toggles below banner */
+  .leaflet-top.leaflet-right { margin-top: 140px; }   /* push layer toggles below banner */
   #brandLogo { bottom: 26px; right: 26px; }          /* nudge logo down a bit */
 
 
@@ -166,21 +166,57 @@ html, body { height:100%; margin:0; }
     top:92px;
     left:10px;
     z-index:100000;
-    background:rgba(11,28,45,0.92);
-    color:#fff;
+    background:#fdd835;
+    color:#111;
     font:900 12px/1 Arial, sans-serif;
     letter-spacing:1px;
-    padding:10px 10px;
-    border-radius:12px;
-    border:1px solid rgba(255,255,255,0.18);
+    padding:12px 12px;
+    border-radius:14px;
+    border:1px solid rgba(0,0,0,0.25);
     box-shadow: 0 8px 22px rgba(0,0,0,.22);
     cursor:pointer;
-    display:none;
+    display:block;
+    user-select:none;
+    text-transform:uppercase;
+  }
+
+  /* Custom zoom box above layer toggles (top-right) */
+  .zoom-box{
+    position:absolute;
+    top:92px;
+    right:10px;
+    z-index:100000;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:rgba(11,28,45,0.92);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:14px;
+    padding:8px 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
     user-select:none;
   }
-  body.guide-collapsed #storyTab{ display:block; }
+  .zoom-label{
+    font:900 11px/1 Arial, sans-serif;
+    letter-spacing:.8px;
+    color:#fff;
+    opacity:.92;
+  }
+  .zoom-btn{
+    border:1px solid rgba(255,255,255,0.35);
+    background:rgba(0,0,0,0.25);
+    color:#fff;
+    padding:7px 10px;
+    border-radius:12px;
+    font:900 14px/1 Arial, sans-serif;
+    cursor:pointer;
+    line-height:1;
+  }
+  .zoom-btn:hover{ background:rgba(0,0,0,0.40); }
 
-  .story-actions{ display:flex; align-items:center; gap:8px; }
+  /* Remove default Leaflet zoom buttons (we use custom zoom box) */
+  .leaflet-control-zoom{ display:none !important; }
+.story-actions{ display:flex; align-items:center; gap:8px; }
   .story-action{
     border:1px solid rgba(0,0,0,.25);
     background:#fff;
@@ -750,6 +786,27 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   }
 }
 
+
+/* --- Brand logo in top-right of banner (no white box) --- */
+#brandLogo{
+  position:absolute !important;
+  top:8px !important;
+  right:12px !important;
+  bottom:auto !important;
+  width:150px !important;
+  max-width:32vw !important;
+  height:auto !important;
+  padding:0 !important;
+  background:transparent !important;
+  border:none !important;
+  border-radius:12px !important;
+  filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important;
+  z-index:100005 !important;
+  pointer-events:none !important;
+}
+
+.banner-topline .topline-center{ padding-right: 170px !important; }
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -802,7 +859,8 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   </div>
   <div class="tiny" id="storyStep"></div>
 </div>
-<div id="storyTab" aria-label="Open guide">GUIDE</div>
+<div id="storyTab" aria-label="Open lesson">OPEN LESSON</div>
+<div id="zoomBox" class="zoom-box" aria-label="Zoom controls"><span class="zoom-label">ZOOM</span><button class="zoom-btn" id="zoomMinus" title="Zoom out">−</button><button class="zoom-btn" id="zoomPlus" title="Zoom in">+</button></div>
 <div id="stormScienceGuide" aria-label="Storm Science Guide">
   <div class="ssg-head">
     <div class="ssg-title">Storm Science Guide</div>
@@ -831,20 +889,13 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
       <span class="top-sep">—</span>
       <span class="top-question"><span class="top-q-label">Question:</span> How can we use real-time weather data to make safer decisions?</span>
     </div>
-<button class="bbtn bbtn-story" id="beginStoryBtn" title="Begin the guided story">START</button>
-  </div>
+</div>
   <div class="banner-divider" aria-hidden="true"></div>
 
   <div class="banner-bottomline">
     <div class="bottomline-center">
 <button class="bbtn" id="modeBtn" title="Toggle Student / Teacher mode">STUDENT</button>
-
-      <div class="opacity-wrap" title="Opacity">
-        <span class="op-label">Opacity</span>
-        <input id="radarOpacity" type="range" min="20" max="100" value="70" />
-      </div>
-
-      <div class="banner-product" aria-label="Product shown">
+<div class="banner-product" aria-label="Product shown">
         <div class="product-center" id="productLabel">RADAR</div>
       </div>
 
@@ -853,10 +904,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
         <div class="btime" id="bannerTimeLabel">April 14, 2018 7AM</div>
         <button class="bbtn" id="bFwdBtn" title="Forward 3 hours">▶</button>
       </div>
-
-      <button class="bbtn" id="zoomOutBtn" title="Zoom out">−</button>
-      <button class="bbtn" id="zoomInBtn" title="Zoom in">+</button>
-      <button class="bbtn" id="stormScienceGuideBtn" title="Storm Science Guide">STORM SCIENCE GUIDE</button>
+<button class="bbtn" id="stormScienceGuideBtn" title="Storm Science Guide">STORM SCIENCE GUIDE</button>
     </div>
   </div>
 
@@ -936,6 +984,12 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
   // ---------- Map ----------
   var map = L.map("map", { zoomControl:true }).setView([43.55, -96.73], 6);
+
+  // Custom zoom box buttons (top-right)
+  var zoomPlus = document.getElementById("zoomPlus");
+  var zoomMinus = document.getElementById("zoomMinus");
+  if (zoomPlus) zoomPlus.onclick = function(){ map.zoomIn(); };
+  if (zoomMinus) zoomMinus.onclick = function(){ map.zoomOut(); };
 
   // --- State boundaries / outlines (GeoJSON first; tile fallback) ---
   map.createPane("lines");
@@ -1410,9 +1464,7 @@ function safeLink(url){
 
   
 // Banner actions
-var beginStoryBtn = document.getElementById("beginStoryBtn");
-if (beginStoryBtn) beginStoryBtn.onclick = function(){ storyStarted = true;
-    renderStory(storyIndex, true); openGuide(); };
+// (Start button removed; Open Lesson button now toggles the guide)
 // Guided vs Explore mode
 // Guided: story panel controls layers (clean UI)
 // Explore: show layer toggles + optional opacity slider
@@ -1439,7 +1491,7 @@ function collapseGuide(){
   document.body.classList.add("guide-collapsed");
 }
 if (hideGuideBtn) hideGuideBtn.onclick = function(){ collapseGuide(); };
-if (storyTabEl) storyTabEl.onclick = function(){ openGuide(); };
+if (storyTabEl) storyTabEl.onclick = function(){ storyStarted = true; storyToggle(); };
 
 // Explore toggle
 if (exploreBtn) exploreBtn.textContent = "Guided";

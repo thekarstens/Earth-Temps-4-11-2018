@@ -882,9 +882,13 @@ html, body { height:100%; margin:0; }
         var c = b.getCenter();
 
         var p = f.properties || {};
-        var abbr = p.STUSPS || p.STUSPS10 || p.USPS || p.STATE || "";
-        var name = p.NAME || p.name || "";
-        var txt = (abbr && String(abbr).length <= 4) ? String(abbr) : String(name);
+        var abbr = p.STUSPS || p.STUSPS10 || p.USPS || "";
+        var name = p.NAME || p.NAME10 || p.name || "";
+        // Prefer full state name on the wide view. Avoid numeric FIPS codes.
+        var txt = "";
+        if (name) txt = String(name);
+        else if (abbr && isNaN(Number(abbr))) txt = String(abbr);
+        else txt = "";
         if (!txt) return;
 
         out.push({ lat: c.lat, lon: c.lng, text: txt });
@@ -2798,6 +2802,67 @@ async function jetAnimInit(){
   setJetAnimText("jetAnimStatus", "Frames ready: " + frames.length);
 }
 
+
+function parseJetFrameTime(str){
+  try{
+    var s = String(str || "");
+    // common patterns: 20180414_18z, 2018041418, 20180414_1800, etc.
+    var m = s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})z/i);
+    if (!m) m = s.match(/(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(?:00)?/);
+    if (!m) return null;
+    var yy=+m[1], mo=+m[2], dd=+m[3], hh=+m[4];
+    if (!isFinite(yy)||!isFinite(mo)||!isFinite(dd)||!isFinite(hh)) return null;
+    return Date.UTC(yy, mo-1, dd, hh, 0, 0);
+  }catch(e){ return null; }
+}
+
+// Pick the closest jet frame to the banner clock, and load it into leaflet-velocity.
+async function syncJetParticlesToClock(){
+  try{
+    if (!window._jetParticlesOverlayEnabled) return;
+    if (!window._jetAnim || !window._jetAnim.ready) return;
+
+    // Snapshot-only mode
+    if (!window._jetAnim.frames || !window._jetAnim.frames.length){
+      ensureJetParticles();
+      return;
+    }
+
+    var t = curZ.getTime();
+    var bestI = 0, bestD = Infinity;
+
+    for (var i=0; i<window._jetAnim.frames.length; i++){
+      var f = window._jetAnim.frames[i];
+      if (!f) continue;
+      var ft = f._time;
+      if (!isFinite(ft)){
+        ft = parseJetFrameTime(f.url) || parseJetFrameTime(f.label);
+        f._time = ft;
+      }
+      if (!isFinite(ft)) continue;
+      var d = Math.abs(ft - t);
+      if (d < bestD){ bestD = d; bestI = i; }
+    }
+
+    // If we couldn't parse any times, just use current idx.
+    if (!isFinite(bestD)){
+      bestI = window._jetAnim.idx || 0;
+    }
+
+    if (bestI !== window._jetAnim.idx || !window._jetAnim._loadedOnce){
+      window._jetAnim.idx = bestI;
+      window._jetAnim._loadedOnce = true;
+      var f2 = window._jetAnim.frames[bestI];
+      if (f2 && f2.url){
+        await loadJetVelocityFromUrl(f2.url);
+      }
+    }
+  }catch(e){
+    console.warn(e);
+  }
+}
+
+
 function jetAnimPause(){
   if (window._jetAnim.timer){
     clearInterval(window._jetAnim.timer);
@@ -2830,34 +2895,10 @@ function jetAnimPlay(){
   setJetAnimText("jetAnimStatus", "Playing…");
 }
 
-function hookJetAnimUI(){
-  var slider = document.getElementById("jetAnimSlider");
-  if (slider){
-    slider.addEventListener("input", async function(){
-      jetAnimPause();
-      if (!window._jetAnim.frames.length) return;
-      var i = parseInt(slider.value, 10) || 0;
-      window._jetAnim.idx = i;
-      var f = window._jetAnim.frames[i];
-      if (f && f.url){
-        try{ await loadJetVelocityFromUrl(f.url); }catch(e){ console.error(e); setJetAnimText("jetAnimStatus", "Frame load failed (see console)."); }
-      }
-    });
-  }
-  var btnPlay = document.getElementById("jetAnimPlay");
-  var btnPause = document.getElementById("jetAnimPause");
-  if (btnPlay) btnPlay.addEventListener("click", function(){ jetAnimPlay(); });
-  if (btnPause) btnPause.addEventListener("click", function(){ jetAnimPause(); });
-}
-
-// Initialize animation system on page load
+// Initialize animation system on page load (no scrubber UI)
 (function(){
-  try{
-    hookJetAnimUI();
-    jetAnimInit();
-  }catch(e){}
+  try{ jetAnimInit(); }catch(e){}
 })();
-
 
 function updateJetLayersVisibility(){
   // Called from overlayadd/overlayremove
@@ -3127,6 +3168,8 @@ function updateAlerts(){
 
   function updateAll(){
     setTimeLabel();
+    // Keep jet particles in sync with the master banner clock
+    syncJetParticlesToClock();
     updateRadar();
     updateGfsSnow();
     updateEra5Global();
@@ -3164,33 +3207,7 @@ function updateAlerts(){
 })();
 </script>
 
-<!-- Jet Stream Animation Panel (250mb) -->
-<div id="jetAnimPanel" style="
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  z-index: 9999;
-  width: min(520px, calc(100vw - 32px));
-  background: rgba(255,255,255,0.92);
-  border: 1px solid rgba(0,0,0,0.20);
-  border-radius: 14px;
-  padding: 10px 12px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.15);
-  font: 700 13px/1.2 Arial, sans-serif;
-">
-  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-    <div style="font-size:14px; letter-spacing:0.5px;">JET STREAM ANIMATION (250 MB)</div>
-    <div id="jetAnimTime" style="font:700 12px/1.2 Arial,sans-serif; opacity:.85; text-align:right;">(toggle particles to load)</div>
-  </div>
-  <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-    <button id="jetAnimPlay" title="Play" style="width:36px;height:32px;border-radius:10px;border:1px solid rgba(0,0,0,.25);background:#fff;cursor:pointer;font:800 14px/1 Arial;">▶</button>
-    <button id="jetAnimPause" title="Pause" style="width:36px;height:32px;border-radius:10px;border:1px solid rgba(0,0,0,.25);background:#fff;cursor:pointer;font:800 14px/1 Arial;">❚❚</button>
-    <input id="jetAnimSlider" type="range" min="0" max="0" step="1" value="0" style="flex:1; accent-color:#1e88e5;">
-  </div>
-  <div id="jetAnimStatus" style="margin-top:8px; font:600 12px/1.2 Arial,sans-serif; opacity:.85;">
-    Tip: turn on <b>Jet Stream (250mb) – Particles</b> in the Layers box, then scrub or hit Play.
-  </div>
-</div>
+
 
 </body>
 </html>

@@ -633,6 +633,123 @@ html, body { height:100%; margin:0; }
 .jet-tooltip .jt-title{ font-weight: 800; font-size: 14px; letter-spacing: .3px; }
 .jet-tooltip .jt-sub{ font-size: 12px; opacity: 0.9; margin-top: 2px; }
 
+/* --- Storm Science Guide (right-side drawer) --- */
+#stormScienceGuide{
+  position:absolute;
+  top:92px;             /* below your banner */
+  right:10px;
+  width:360px;
+  max-width:92vw;
+  max-height: calc(100vh - 100px);
+  overflow:hidden;
+  z-index:100002;       /* above map + legend */
+  background:rgba(255,255,255,0.98);
+  border:1px solid rgba(0,0,0,0.18);
+  border-radius:16px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.18);
+  transform: translateX(110%);
+  transition: transform 180ms ease;
+  display:flex;
+  flex-direction:column;
+}
+body.ssg-open #stormScienceGuide{ transform: translateX(0); }
+
+.ssg-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 12px 10px 12px;
+  border-bottom:1px solid rgba(0,0,0,0.10);
+}
+.ssg-title{
+  font:900 16px/1.1 Arial, sans-serif;
+  letter-spacing:.2px;
+}
+.ssg-close{
+  border:1px solid rgba(0,0,0,.25);
+  background:#fff;
+  border-radius:10px;
+  padding:4px 8px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.ssg-tabs{
+  display:flex;
+  gap:8px;
+  padding:10px 12px;
+}
+.ssg-tab{
+  flex:1;
+  border:1px solid rgba(0,0,0,0.18);
+  background:#fff;
+  border-radius:12px;
+  padding:8px 10px;
+  font:900 12px/1 Arial, sans-serif;
+  cursor:pointer;
+}
+.ssg-tab.active{
+  background:rgba(11,28,45,0.92);
+  color:#fff;
+  border-color: rgba(11,28,45,0.92);
+}
+
+.ssg-search{ padding:0 12px 10px 12px; }
+#ssgSearch{
+  width:100%;
+  padding:10px 10px;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.18);
+  font:800 13px/1 Arial, sans-serif;
+}
+
+.ssg-body{
+  padding:0 12px 12px 12px;
+  overflow:auto;
+}
+
+.ssg-foot{
+  padding:10px 12px 12px 12px;
+  border-top:1px solid rgba(0,0,0,0.08);
+}
+
+/* Term cards */
+.ssg-term{
+  border:1px solid rgba(0,0,0,0.12);
+  border-radius:14px;
+  padding:10px 10px;
+  margin:10px 0;
+  background:#fff;
+}
+.ssg-term h4{
+  margin:0 0 6px 0;
+  font:900 14px/1.1 Arial, sans-serif;
+}
+.ssg-def{ font:800 13px/1.35 Arial, sans-serif; margin:6px 0; }
+.ssg-brian{ font:800 13px/1.35 Arial, sans-serif; margin:6px 0; }
+.ssg-why{ margin:6px 0 0 18px; font:800 13px/1.35 Arial, sans-serif; }
+.ssg-pill{
+  display:inline-block;
+  margin-top:6px;
+  padding:3px 8px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.12);
+  font:900 11px/1 Arial, sans-serif;
+  opacity:.85;
+}
+
+/* Mobile: full-screen drawer */
+@media (max-width: 640px){
+  #stormScienceGuide{
+    left:6px;
+    right:6px;
+    width:auto;
+    top:78px;
+    max-height: calc(100vh - 86px);
+  }
+}
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -686,6 +803,27 @@ html, body { height:100%; margin:0; }
   <div class="tiny" id="storyStep"></div>
 </div>
 <div id="storyTab" aria-label="Open guide">GUIDE</div>
+<div id="stormScienceGuide" aria-label="Storm Science Guide">
+  <div class="ssg-head">
+    <div class="ssg-title">Storm Science Guide</div>
+    <button class="ssg-close" id="ssgCloseBtn" title="Close">✕</button>
+  </div>
+
+  <div class="ssg-tabs" role="tablist" aria-label="Storm Science Guide tabs">
+    <button class="ssg-tab active" id="ssgTabScene" type="button">This Scene</button>
+    <button class="ssg-tab" id="ssgTabAll" type="button">All Terms</button>
+  </div>
+
+  <div class="ssg-search">
+    <input id="ssgSearch" type="search" placeholder="Search terms… (dew point, jet stream, humidity)" />
+  </div>
+
+  <div class="ssg-body" id="ssgBody"></div>
+
+  <div class="ssg-foot tiny">
+    Tip: Later we can auto-fill “This Scene” by adding a <b>terms</b> column to your story sheet.
+  </div>
+</div>
 <div id="banner" class="tvbanner">
   <div class="banner-topline" role="banner">
     <div class="topline-center">
@@ -718,6 +856,7 @@ html, body { height:100%; margin:0; }
 
       <button class="bbtn" id="zoomOutBtn" title="Zoom out">−</button>
       <button class="bbtn" id="zoomInBtn" title="Zoom in">+</button>
+      <button class="bbtn" id="stormScienceGuideBtn" title="Storm Science Guide">STORM SCIENCE GUIDE</button>
     </div>
   </div>
 
@@ -3303,6 +3442,185 @@ function updateAlerts(){
 </script>
 
 
+
+<script>
+(function(){
+  // ---------- Glossary Data (starter pack) ----------
+  var GLOSSARY = [
+    {
+      term: "Dew Point",
+      category: "Moisture",
+      definition: "The temperature air must cool to become saturated with water vapor.",
+      brian: "It’s the best quick clue for how ‘humid’ the air really is.",
+      why: ["Higher dew point = stickier air", "Helps predict fog, clouds, and storm fuel"]
+    },
+    {
+      term: "Humidity",
+      category: "Moisture",
+      definition: "A measure of how much water vapor is in the air.",
+      brian: "Humidity tells you how much invisible water is mixed into the air around you.",
+      why: ["Affects comfort", "Impacts cloud and precipitation formation"]
+    },
+    {
+      term: "Relative Humidity",
+      category: "Moisture",
+      definition: "The percentage of water vapor in the air compared to the maximum it could hold at that temperature.",
+      brian: "It’s temperature-dependent — warm air can ‘hold’ more moisture than cold air.",
+      why: ["Explains why RH can rise at night as temps fall", "Useful for fog and cloud timing"]
+    },
+    {
+      term: "Jet Stream",
+      category: "Wind",
+      definition: "A narrow band of strong winds in the upper levels of the atmosphere.",
+      brian: "Think of it like a fast river of air that helps steer storms.",
+      why: ["Guides storm track", "Stronger jet can support stronger storms"]
+    },
+    {
+      term: "Trough",
+      category: "Wind",
+      definition: "An elongated area of lower pressure aloft, often associated with rising air.",
+      brian: "A dip in the flow that often helps storms grow.",
+      why: ["Often increases lift", "Frequently tied to storm development"]
+    },
+    {
+      term: "Ridge",
+      category: "Wind",
+      definition: "An elongated area of higher pressure aloft, often associated with sinking air.",
+      brian: "A bump in the flow that often favors calmer, drier weather.",
+      why: ["Can suppress storm growth", "Often linked with warmer temps"]
+    }
+  ];
+
+  // ---------- Elements ----------
+  var btn = document.getElementById("stormScienceGuideBtn");
+  var panel = document.getElementById("stormScienceGuide");
+  var closeBtn = document.getElementById("ssgCloseBtn");
+  var tabScene = document.getElementById("ssgTabScene");
+  var tabAll = document.getElementById("ssgTabAll");
+  var search = document.getElementById("ssgSearch");
+  var body = document.getElementById("ssgBody");
+
+  if (!btn || !panel || !body) return;
+
+  // ---------- State ----------
+  var mode = "scene"; // "scene" or "all"
+  var q = "";
+
+  function openPanel(){
+    document.body.classList.add("ssg-open");
+    try{ if (typeof map !== "undefined") setTimeout(function(){ map.invalidateSize(); }, 220); }catch(e){}
+    render();
+  }
+  function closePanel(){
+    document.body.classList.remove("ssg-open");
+    try{ if (typeof map !== "undefined") setTimeout(function(){ map.invalidateSize(); }, 220); }catch(e){}
+  }
+  function togglePanel(){
+    if (document.body.classList.contains("ssg-open")) closePanel();
+    else openPanel();
+  }
+
+  btn.addEventListener("click", togglePanel);
+  if (closeBtn) closeBtn.addEventListener("click", closePanel);
+
+  // Tabs
+  function setMode(m){
+    mode = m;
+    tabScene.classList.toggle("active", mode === "scene");
+    tabAll.classList.toggle("active", mode === "all");
+    render();
+  }
+  tabScene.addEventListener("click", function(){ setMode("scene"); });
+  tabAll.addEventListener("click", function(){ setMode("all"); });
+
+  // Search
+  search.addEventListener("input", function(){
+    q = (search.value || "").trim().toLowerCase();
+    render();
+  });
+
+  // Hook into your story: if you later add a "terms" field to the sheet rows,
+  // and you store it in storyItems[storyIndex].terms, this will auto work.
+  function getSceneTerms(){
+    try{
+      if (typeof storyItems !== "undefined" && typeof storyIndex !== "undefined"){
+        var item = storyItems[storyIndex];
+        if (item && item.terms){
+          return String(item.terms).split(",").map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
+        }
+      }
+    }catch(e){}
+    return [];
+  }
+
+  function matchesSearch(entry){
+    if (!q) return true;
+    var blob = (entry.term + " " + entry.category + " " + entry.definition + " " + entry.brian).toLowerCase();
+    return blob.indexOf(q) !== -1;
+  }
+
+  function renderTerm(entry){
+    var whyHtml = (entry.why || []).map(function(x){ return "<li>" + escapeHtml(x) + "</li>"; }).join("");
+    return (
+      "<div class='ssg-term'>" +
+        "<h4>" + escapeHtml(entry.term) + "</h4>" +
+        "<div class='ssg-def'><b>Definition:</b> " + escapeHtml(entry.definition) + "</div>" +
+        "<div class='ssg-brian'><b>In Brian’s words:</b> " + escapeHtml(entry.brian) + "</div>" +
+        (whyHtml ? ("<ul class='ssg-why'><b>Why it matters:</b>" + whyHtml + "</ul>") : "") +
+        "<div class='ssg-pill'>" + escapeHtml(entry.category || "Term") + "</div>" +
+      "</div>"
+    );
+  }
+
+  function render(){
+    var html = "";
+
+    if (mode === "scene"){
+      var scene = getSceneTerms();
+
+      html += "<p class='tiny' style='margin:8px 0 0 0; opacity:.85;'>Terms tied to this station.</p>";
+
+      if (!scene.length){
+        html += "<div class='ssg-term'><h4>Coming soon</h4>" +
+                "<div class='ssg-def'>We haven’t tagged terms for this station yet.</div>" +
+                "<div class='ssg-brian'><b>Easy upgrade:</b> add a <span class='mono'>terms</span> column in your story sheet like: <span class='mono'>dew point, jet stream</span></div>" +
+                "</div>";
+      } else {
+        var found = 0;
+        GLOSSARY.forEach(function(e){
+          var key = e.term.toLowerCase();
+          var ok = scene.some(function(t){ return key.indexOf(t) !== -1 || t.indexOf(key) !== -1; });
+          if (ok && matchesSearch(e)){ html += renderTerm(e); found++; }
+        });
+        if (!found){
+          html += "<div class='ssg-term'><h4>No matches</h4><div class='ssg-def'>Try a different search or switch to <b>All Terms</b>.</div></div>";
+        }
+      }
+
+    } else {
+      var any = 0;
+      GLOSSARY.forEach(function(e){
+        if (matchesSearch(e)){ html += renderTerm(e); any++; }
+      });
+      if (!any){
+        html += "<div class='ssg-term'><h4>No matches</h4><div class='ssg-def'>Try searching “dew point” or “jet stream”.</div></div>";
+      }
+    }
+
+    body.innerHTML = html;
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#039;");
+  }
+
+})();
+</script>
 
 </body>
 </html>

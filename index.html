@@ -2584,15 +2584,19 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
 
     var coldLines = [];
     var warmLines = [];
+    var stationaryLines = [];
+    var dryLines = [];
 
     frontsLayer.eachLayer(function(layer){
       if (!layer || !layer.feature || !layer.feature.properties) return;
       // Only decorate polylines
       if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
       var p = layer.feature.properties;
-      var fr = String(p.front || p.FRONT || p.kind || "").toLowerCase();
-      if (fr === "cold") coldLines.push(layer);
-      if (fr === "warm") warmLines.push(layer);
+      var fr = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
+      if (fr.includes("cold")) coldLines.push(layer);
+      if (fr.includes("warm")) warmLines.push(layer);
+      if (fr.includes("stationary")) stationaryLines.push(layer);
+      if (fr.includes("dryline") || fr === "dry") dryLines.push(layer);
     });
 
     var patterns = [];
@@ -2652,6 +2656,80 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
       }));
     }
 
+
+
+    if (stationaryLines.length){
+      // Stationary front: alternating BLUE triangles and RED semicircles on opposite sides of the line.
+      // (Direction of the line controls which side is "left/right". If you draw the line the other way,
+      // the symbols will flip sides.)
+      var statColdIcon = L.divIcon({
+        className: "",
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <polygon points="8,1 15,15 1,15" fill="#1e88e5"/>
+               </svg>`,
+        iconSize: [14,14],
+        iconAnchor: [7,14]
+      });
+
+      var statWarmIcon = L.divIcon({
+        className: "",
+        html: `<svg width="14" height="14" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <path d="M1 15 A7 7 0 0 1 15 15 Z" fill="#e53935"/>
+               </svg>`,
+        iconSize: [14,14],
+        iconAnchor: [7,14]
+      });
+
+      // Blue triangles (same as cold) at one cadence…
+      patterns.push(L.polylineDecorator(stationaryLines, {
+        patterns: [{
+          offset: 6,
+          repeat: 40,
+          symbol: L.Symbol.marker({
+            rotate: true,
+            angleCorrection: -90,
+            markerOptions: { icon: statColdIcon }
+          })
+        }]
+      }));
+
+      // …and red semicircles interleaved half-way between, flipped to the other side.
+      patterns.push(L.polylineDecorator(stationaryLines, {
+        patterns: [{
+          offset: 26,
+          repeat: 40,
+          symbol: L.Symbol.marker({
+            rotate: true,
+            angleCorrection: 90,
+            markerOptions: { icon: statWarmIcon }
+          })
+        }]
+      }));
+    }
+
+    if (dryLines.length){
+      // Dryline: dashed brown line with small brown "bumps" on one side (simple, classroom-friendly symbol).
+      var dryIcon = L.divIcon({
+        className: "",
+        html: `<svg width="12" height="12" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                 <path d="M1 15 A7 7 0 0 1 15 15 Z" fill="#a86f00"/>
+               </svg>`,
+        iconSize: [12,12],
+        iconAnchor: [6,12]
+      });
+
+      patterns.push(L.polylineDecorator(dryLines, {
+        patterns: [{
+          offset: 6,
+          repeat: 32,
+          symbol: L.Symbol.marker({
+            rotate: true,
+            angleCorrection: -90,
+            markerOptions: { icon: dryIcon }
+          })
+        }]
+      }));
+    }
     if (!patterns.length) return;
 
     frontsDecorGroup = L.layerGroup(patterns);
@@ -2664,15 +2742,20 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
     var ftype = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
 
     var color = "#111";
+    var dash = null;
+
     if (ftype.includes("cold")) color = "#1e88e5";
     else if (ftype.includes("warm")) color = "#e53935";
     else if (ftype.includes("occluded")) color = "#8e24aa";
     else if (ftype.includes("stationary")) color = "#43a047";
+    else if (ftype.includes("dryline") || ftype === "dry") { color = "#a86f00"; dash = "8,8"; }
 
     var w = parseFloat(p.width);
-    if (!isFinite(w)) w = 3;
+    if (!isFinite(w)) w = 4;
 
-    return { color: color, weight: w, lineCap:'round', lineJoin:'round', opacity: 0.95 };
+    var style = { color: color, weight: w, lineCap:'round', lineJoin:'round', opacity: 0.95 };
+    if (dash) style.dashArray = dash;
+    return style;
   }
 
   function makeHLIcon(letter){

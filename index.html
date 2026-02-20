@@ -2596,58 +2596,12 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
       // Only decorate polylines
       if (!(layer instanceof L.Polyline) || (layer instanceof L.Polygon)) return;
       var p = layer.feature.properties;
-      var fr = String(p.front || p.FRONT || p.front_type || p.frontType || p.FRONT_TYPE || p.kind || p.type || "").toLowerCase();
+      var fr = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
       if (fr.includes("cold")) coldLines.push(layer);
       if (fr.includes("warm")) warmLines.push(layer);
       if (fr.includes("stationary")) stationaryLines.push(layer);
       if (fr.includes("dryline") || fr === "dry") dryLines.push(layer);
     });
-
-    // Build stationary baseline as alternating red/blue segments (to match symbol colors)
-    // We hide the original stationary polyline (opacity 0) and draw these segments instead.
-    if (stationaryLines.length){
-      frontsStationaryBaseGroup = L.layerGroup();
-
-      function _flattenLatLngs(latlngs){
-        // Handles: [LatLng,...] or [[LatLng,...], ...]
-        if (!latlngs) return [];
-        if (Array.isArray(latlngs) && latlngs.length && Array.isArray(latlngs[0])){
-          // might be multi
-          var out = [];
-          latlngs.forEach(function(part){
-            if (Array.isArray(part) && part.length && !Array.isArray(part[0])) out = out.concat(part);
-            else if (Array.isArray(part) && part.length && Array.isArray(part[0])) {
-              // deeper nesting
-              part.forEach(function(pp){ if (Array.isArray(pp)) out = out.concat(pp); });
-            }
-          });
-          return out;
-        }
-        return latlngs;
-      }
-
-      var segColors = ["#1e88e5", "#e53935"]; // blue, red
-
-      stationaryLines.forEach(function(line){
-        var ll = _flattenLatLngs(line.getLatLngs());
-        if (!ll || ll.length < 2) return;
-        for (var i=0; i<ll.length-1; i++){
-          var a = ll[i], b = ll[i+1];
-          if (!a || !b) continue;
-          var c = segColors[i % 2];
-          L.polyline([a, b], {
-            pane: "lines",
-            color: c,
-            weight: 4,
-            opacity: 1,
-            lineCap: "round",
-            lineJoin: "round"
-          }).addTo(frontsStationaryBaseGroup);
-        }
-      });
-
-      if (frontsEnabled){ frontsStationaryBaseGroup.addTo(map); }
-    }
 
     var patterns = [];
 
@@ -2761,11 +2715,11 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
       // Dryline: dashed brown line with small brown "bumps" on one side (simple, classroom-friendly symbol).
       var dryIcon = L.divIcon({
         className: "",
-        html: `<svg width="18" height="18" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        html: `<svg width="12" height="12" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                  <path d="M1 15 A7 7 0 0 1 15 15 Z" fill="#a86f00"/>
                </svg>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 24]
+        iconSize: [12,12],
+        iconAnchor: [6,12]
       });
 
       patterns.push(L.polylineDecorator(dryLines, {
@@ -2789,7 +2743,7 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
 
   function frontsLineStyle(feature){
     var p = (feature && feature.properties) ? feature.properties : {};
-    var ftype = String(p.front || p.FRONT || p.front_type || p.frontType || p.FRONT_TYPE || p.kind || p.type || "").toLowerCase();
+    var ftype = String(p.front || p.FRONT || p.kind || p.type || "").toLowerCase();
 
     var color = "#111";
     var dash = null;
@@ -2797,15 +2751,13 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
     if (ftype.includes("cold")) color = "#1e88e5";
     else if (ftype.includes("warm")) color = "#e53935";
     else if (ftype.includes("occluded")) color = "#8e24aa";
-    else if (ftype.includes("stationary")) color = "#1e88e5";
+    else if (ftype.includes("stationary")) color = "#43a047";
     else if (ftype.includes("dryline") || ftype === "dry") { color = "#a86f00"; dash = "8,8"; }
 
     var w = parseFloat(p.width);
     if (!isFinite(w)) w = 4;
 
     var style = { color: color, weight: w, lineCap:'round', lineJoin:'round', opacity: 0.95 };
-    // Hide the base stationary line; we draw an alternating red/blue base in frontsStationaryBaseGroup.
-    if (ftype.includes('stationary')) { style.opacity = 0.0; }
     if (dash) style.dashArray = dash;
     return style;
   }
@@ -4593,3 +4545,28 @@ function updateAlerts(){
 
 </body>
 </html>
+    // Build stationary baseline as alternating red/blue segments (matches symbol colors)
+    if (stationaryLines.length){
+      frontsStationaryBaseGroup = L.layerGroup();
+
+      const colors = ['#1e88e5', '#e53935']; // blue then red (alternate)
+      const makeSegments = (latlngs) => {
+        // latlngs may be nested for multi-polylines; flatten to simple arrays
+        const parts = Array.isArray(latlngs[0]) ? latlngs : [latlngs];
+        parts.forEach(part => {
+          for (let i = 0; i < part.length - 1; i++){
+            const seg = [part[i], part[i+1]];
+            const color = colors[i % colors.length];
+            L.polyline(seg, { color, weight: 5, opacity: 0.95, interactive: false }).addTo(frontsStationaryBaseGroup);
+          }
+        });
+      };
+
+      stationaryLines.forEach(lineLayer => {
+        try { makeSegments(lineLayer.getLatLngs()); } catch(e){}
+      });
+
+      if (frontsEnabled) frontsStationaryBaseGroup.addTo(map);
+    }
+
+

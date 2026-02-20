@@ -3571,8 +3571,8 @@ map.on("overlayadd", function(e){
       window._jetParticlesOverlayEnabled = true;
       // Prefer animation frame 0 if available; otherwise snapshot
       if (window._jetAnim && window._jetAnim.frames && window._jetAnim.frames.length){
-        syncJetParticlesToClock();
-      } else {
+        syncJetParticlesToClock().catch(function(e){console.warn('syncJetParticlesToClock failed', e);});
+    } else {
         ensureJetParticles(); // snapshot
       }
     }
@@ -3618,7 +3618,7 @@ function setJetAnimText(id, txt){
   if (el) el.textContent = txt;
 }
 
-async function loadJetFramesManifest(){
+async async function loadJetFramesManifest(){
   try{
     var r = await fetch(window.JET_MANIFEST_URL + "?v=" + Date.now(), {cache:"no-store"});
     if (!r.ok) return null;
@@ -3671,7 +3671,7 @@ function normalizeVelocityIfNeeded(data){
   return data;
 }
 
-async function loadJetVelocityFromUrl(url){
+async async function loadJetVelocityFromUrl(url){
   if (!url) throw new Error("No URL for jet frame.");
   url = resolveJetFrameUrl(url);
   setJetAnimText("jetAnimStatus", "Loading: " + url);
@@ -3718,7 +3718,7 @@ async function loadJetVelocityFromUrl(url){
   setJetAnimText("jetAnimStatus", "Loaded: " + url);
 }
 
-async function jetAnimInit(){
+async async function jetAnimInit(){
   var frames = await loadJetFramesManifest();
   if (!frames){
     // No manifest => keep snapshot-only mode
@@ -3759,7 +3759,7 @@ function parseJetFrameTime(str){
 }
 
 // Pick the closest jet frame to the banner clock, and load it into leaflet-velocity.
-async function syncJetParticlesToClock(){
+async async function syncJetParticlesToClock(){
   try{
     if (!window._jetParticlesOverlayEnabled) return;
     if (!window._jetAnim || !window._jetAnim.ready) return;

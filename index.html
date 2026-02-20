@@ -1073,6 +1073,34 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   top: 220px !important;
 }
 
+
+/* Premium banner cloud texture */
+#banner, .banner, .top-banner, .header-banner {
+  position: relative;
+  overflow: hidden;
+}
+#banner::before, .banner::before, .top-banner::before, .header-banner::before{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  background-image:
+    radial-gradient(closest-side at 12% 55%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.00) 70%),
+    radial-gradient(closest-side at 32% 35%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.00) 72%),
+    radial-gradient(closest-side at 56% 60%, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.00) 70%),
+    radial-gradient(closest-side at 78% 38%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.00) 70%),
+    radial-gradient(closest-side at 92% 58%, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.00) 70%);
+  filter: blur(8px);
+  opacity: 1;
+  mix-blend-mode: screen;
+}
+#banner::after, .banner::after, .top-banner::after, .header-banner::after{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  background-image: radial-gradient(circle at 20% 30%, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 55%),
+                    radial-gradient(circle at 70% 70%, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 60%);
+  opacity: 1;
+}
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -3506,6 +3534,10 @@ function normalizeVelocityIfNeeded(records){
   // - header.la1 should be the SOUTH edge (min lat)
   // - header.dy should be POSITIVE
   // - row 0 in data should correspond to the SOUTH edge
+  //
+  // Some GRIB->JSON converters lose the sign on dy. If la1 is near the north edge
+  // and dy is positive, la1 + dy*(ny-1) can exceed 90° which will "wrap" the field
+  // and place it in the wrong hemisphere. We detect that and infer the correct direction.
   try{
     if (!Array.isArray(records)) return records;
 
@@ -3513,9 +3545,9 @@ function normalizeVelocityIfNeeded(records){
       var rec = records[r];
       if (!rec || !rec.header || !Array.isArray(rec.data)) continue;
 
-      var h = rec.header;
+      var h  = rec.header;
       var nx = Number(h.nx), ny = Number(h.ny);
-      var la1 = Number(h.la1), dy = Number(h.dy);
+      var la1 = Number(h.la1), dyRaw = Number(h.dy);
       var lo1 = Number(h.lo1);
 
       if (!isFinite(nx) || !isFinite(ny) || nx<=0 || ny<=1) continue;
@@ -3524,20 +3556,38 @@ function normalizeVelocityIfNeeded(records){
       // Normalize lon origin into [-180, 180]
       if (isFinite(lo1) && lo1 > 180) h.lo1 = lo1 - 360;
 
-      if (!isFinite(la1) || !isFinite(dy) || dy === 0) continue;
+      if (!isFinite(la1) || !isFinite(dyRaw) || dyRaw === 0) continue;
 
-      var lat2 = la1 + dy*(ny-1);
+      var dyAbs = Math.abs(dyRaw);
+
+      // Choose the lat2 that stays within [-90, 90] if possible
+      var lat2a = la1 + dyAbs*(ny-1);
+      var lat2b = la1 - dyAbs*(ny-1);
+      var aOK = (lat2a <= 90.0001 && lat2a >= -90.0001);
+      var bOK = (lat2b <= 90.0001 && lat2b >= -90.0001);
+
+      var lat2;
+      if (aOK && !bOK) lat2 = lat2a;
+      else if (!aOK && bOK) lat2 = lat2b;
+      else {
+        // If both are plausible (or both implausible), fall back to the original sign
+        lat2 = la1 + dyRaw*(ny-1);
+        // If that is implausible, pick the one closer to [-90,90]
+        if (!(lat2 <= 90.0001 && lat2 >= -90.0001)){
+          lat2 = (Math.abs(Math.max(Math.min(lat2a,90),-90) - lat2a) <
+                  Math.abs(Math.max(Math.min(lat2b,90),-90) - lat2b)) ? lat2a : lat2b;
+        }
+      }
+
       var latMin = Math.min(la1, lat2);
       var latMax = Math.max(la1, lat2);
 
-      // Determine if the data is currently NORTH-first.
-      // Common cases:
-      //  - north-first: la1 is latMax and dy is negative OR dy positive but la1 at north edge
+      // Determine if the data is currently NORTH-first (row 0 at latMax)
       var northFirst = (Math.abs(la1 - latMax) < 1e-6);
 
       // Make SOUTH-first header
       h.la1 = latMin;
-      h.dy  = Math.abs(dy);
+      h.dy  = dyAbs;
 
       // If north-first, flip rows so row 0 becomes SOUTH edge
       if (northFirst){

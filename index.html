@@ -1068,9 +1068,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 }
 
 /* Clock bubble default a bit lower; JS will keep it below banner */
-.clock-bubble{
-  top: 220px !important;
-}
+.clock-bubble{  top: 180px !important; }
 
 </style>
 
@@ -3117,10 +3115,35 @@ function updateHrrrTempRadius(){
     }
   });
 }
-  // Load once (GeoJSON must be in same folder as this index.html)
-  fetch("./hrrr_t2m_20180414_12z_f00.geojson")
-    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function(gj){
+  // HRRR Temp loader (lazy: loads on startup AND if user toggles it later)
+  var _hrrrLoadedOnce = false;
+  function ensureHrrrTempLoaded(){
+    if (_hrrrLoadedOnce && hrrrTempGeo) return Promise.resolve(true);
+    // prevent duplicate simultaneous loads
+    if (ensureHrrrTempLoaded._p) return ensureHrrrTempLoaded._p;
+
+    var candidates = [
+      "./hrrr_t2m_20180414_12z_f00.geojson"
+      // Add more candidates here if you rename files later.
+    ];
+
+    function tryOne(i){
+      if (i >= candidates.length) throw new Error("No HRRR temp file could be loaded (checked: " + candidates.join(", ") + ")");
+      var url = candidates[i];
+      return fetch(url).then(function(r){
+        if(!r.ok) throw new Error("HTTP " + r.status + " for " + url);
+        return r.json();
+      }).catch(function(err){
+        console.warn("HRRR temp load failed for", url, err);
+        return tryOne(i+1);
+      });
+    }
+
+    ensureHrrrTempLoaded._p = tryOne(0).then(function(gj){
+      _hrrrLoadedOnce = true;
+      hrrrPoints = [];
+      hrrrTempLayer.clearLayers();
+
       hrrrTempGeo = L.geoJSON(gj, {
         // IMPORTANT: convert 0..360 longitudes -> -180..180 for Leaflet
         coordsToLatLng: function(coords){
@@ -3128,39 +3151,37 @@ function updateHrrrTempRadius(){
           if (lon > 180) lon = lon - 360;
           return L.latLng(lat, lon);
         },
-        
-pointToLayer: function(feature, latlng){
-  var t = Number(feature.properties && feature.properties.t_f);
-  var r = radiusForZoom(map.getZoom());
-  var c = tempColor(t);
 
-  // Base "blob" for gradient field
-  var base = L.circleMarker(latlng, {
-    renderer: hrrrCanvas,
-    radius: r,
-    weight: 0,
-    fillColor: c,
-    fillOpacity: 0.35,
-    _role: "base"
-  });
+        pointToLayer: function(feature, latlng){
+          var t = Number(feature.properties && feature.properties.t_f);
+          var r = radiusForZoom(map.getZoom());
+          var c = tempColor(t);
 
-  // Core dot for "sample point" feel (kept subtle so it doesn't look too polka-dot)
-  var core = L.circleMarker(latlng, {
-    renderer: hrrrCanvas,
-    radius: Math.max(2, Math.round(r * 0.18)),
-    weight: 0,
-    fillColor: c,
-    fillOpacity: 0.55,
-    _role: "core"
-  });
+          var base = L.circleMarker(latlng, {
+            renderer: hrrrCanvas,
+            radius: r,
+            weight: 0,
+            fillColor: c,
+            fillOpacity: 0.35,
+            _role: "base"
+          });
 
-  var grp = L.layerGroup([base, core]);
-  // stash references so we can resize + bind tooltips correctly
-  grp._base = base;
-  grp._core = core;
-  if (isFinite(t)) { hrrrPoints.push({lat: latlng.lat, lon: latlng.lng, tF: t}); }
-  return grp;
-},
+          var core = L.circleMarker(latlng, {
+            renderer: hrrrCanvas,
+            radius: Math.max(2, Math.round(r * 0.18)),
+            weight: 0,
+            fillColor: c,
+            fillOpacity: 0.55,
+            _role: "core"
+          });
+
+          var grp = L.layerGroup([base, core]);
+          grp._base = base;
+          grp._core = core;
+          if (isFinite(t)) { hrrrPoints.push({lat: latlng.lat, lon: latlng.lng, tF: t}); }
+          return grp;
+        },
+
         onEachFeature: function(feature, layer){
           var t = (feature.properties && feature.properties.t_f != null) ? Number(feature.properties.t_f).toFixed(1) : "NA";
           if (layer && layer._core && layer._core.bindTooltip){
@@ -3170,12 +3191,22 @@ pointToLayer: function(feature, latlng){
           }
         }
       }).addTo(hrrrTempLayer);
-      // If HRRR layer is currently visible, show state boundaries too
+
       if (map.hasLayer(hrrrTempLayer)) { addStateLines(); }
       updateHrrrTempRadius();
-    })
-    .catch(function(err){ console.log("HRRR temp load failed:", err); });
+      return true;
+    }).catch(function(err){
+      console.log("HRRR temp load failed:", err);
+      return false;
+    }).finally(function(){
+      ensureHrrrTempLoaded._p = null;
+    });
 
+    return ensureHrrrTempLoaded._p;
+  }
+
+  // Load once at startup
+  ensureHrrrTempLoaded();
 // ---------- Jet stream (250mb) loaders ----------
 var JET_POINTS_URL   = "./jet_250mb_points.geojson";
 var JET_ARROWS_URL   = "./jet_250mb_arrows.geojson";
@@ -3561,9 +3592,22 @@ window._jetParticlesOverlayEnabled = false;
 map.on("overlayadd", function(e){
   try{
     // --- GOES (mtarchive) ---
-    if (e && e.name === "GOES Satellite"){
+    if (e && (e.name === "GOES Satellite" || e.layer === overlays["GOES Satellite"])){
       goesEnabled = true;
       updateGoes();
+      syncOpacitySliderToActive();
+      return;
+    }
+
+    // --- HRRR Temp ---
+    if (e && (e.name === "HRRR Temp (2m)" || e.layer === hrrrTempLayer)){
+      // Make sure the GeoJSON is loaded (some versions were losing this on edits)
+      ensureHrrrTempLoaded().then(function(ok){
+        if (ok) {
+          addStateLines();
+          updateHrrrTempRadius();
+        }
+      });
       syncOpacitySliderToActive();
       return;
     }
@@ -3997,32 +4041,51 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
     try{
       var bubble = document.getElementById("clockBubble");
       if (!bubble) return;
+
       var ctrl = document.querySelector(".leaflet-control-layers");
       if (!ctrl) return;
 
       var rect = ctrl.getBoundingClientRect();
 
-      // Keep the clock bubble OUT of the banner area.
-      var banner = document.getElementById("tvBanner");
+      // Banner bottom (use actual id in this file)
+      var banner = document.getElementById("banner") || document.querySelector(".tvbanner");
       var bannerBottom = 0;
       if (banner){
         var brect = banner.getBoundingClientRect();
         bannerBottom = brect.bottom || 0;
       }
 
-      // Place bubble just above the layers control, aligned to its right edge,
-      // but never higher than the bottom of the banner.
-      var top = rect.top - bubble.offsetHeight - 10;
-      top = Math.max(bannerBottom + 10, top);
+      var pad = 6; // keep the clock snug under the banner
+      var desiredTopAboveCtrl = rect.top - bubble.offsetHeight - 10;
+      var minTop = bannerBottom + pad;
 
-      var rightGap = Math.max(10, window.innerWidth - rect.right);
+      var top = desiredTopAboveCtrl;
+      var placeLeftOfCtrl = false;
+
+      // If we cannot fit above the layers control (because banner is too tall),
+      // keep it just under the banner but shift LEFT so it never covers the toggle box.
+      if (top < minTop){
+        top = minTop;
+        placeLeftOfCtrl = true;
+      } else {
+        top = Math.max(minTop, top);
+      }
+
+      // Right positioning
+      if (placeLeftOfCtrl){
+        // Put bubble to the LEFT of the layers control (10px gap)
+        var right = Math.max(10, window.innerWidth - rect.left + 10);
+        bubble.style.right = right + "px";
+      } else {
+        // Align to the right edge of the layers control
+        var rightGap = Math.max(10, window.innerWidth - rect.right);
+        bubble.style.right = rightGap + "px";
+      }
+
       bubble.style.top = top + "px";
-      bubble.style.right = (rightGap) + "px";
     }catch(e){}
   }
-
-
-  function setTimeLabel(){
+function setTimeLabel(){
     var label = formatCentralLabel(curZ);
     var btl = document.getElementById("bannerTimeLabel");
     if (btl) btl.textContent = label;

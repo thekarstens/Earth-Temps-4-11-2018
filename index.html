@@ -953,7 +953,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   position:absolute;
   right:10px;
   top:160px; /* JS will refine this */
-  z-index: 2400;
+  z-index: 1500;
   background:rgba(11,28,45,0.92);
   border:1px solid rgba(255,255,255,0.18);
   border-radius:14px;
@@ -3475,114 +3475,25 @@ function ensureJetIsotachs(){
 }
 
 function ensureJetParticles(){
-  // Loads ./narr_jet_250mb_20180414_18z_NA_leaflet_velocity.json and creates a Leaflet-Velocity layer.
-  // NOTE: This requires leaflet-velocity.min.js/css to be present locally.
-  if (window._jetVelocityLayer) return;
+  // Ensure a velocity layer exists (snapshot or nearest frame).
+  // This keeps the map from going blank when the clock advances.
+  window._jetParticlesOverlayEnabled = true;
 
-  var url = window.JET_SNAPSHOT_FILE + "?v=" + Date.now();
-  fetch(url)
-    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function(data){
-      // Normalize header so the grid is oriented correctly for Leaflet-Velocity.
-      // Your exported files are north-first; Leaflet-Velocity expects la1=north and dy negative.
-      try{
-        data.forEach(function(rec){
-          if (!rec.header) return;
-          if (typeof rec.header.dy === "number") rec.header.dy = -Math.abs(rec.header.dy);
-        });
-      }catch(e){}
-
-      // Color ramp: blue -> dark blue -> green -> yellow -> red (0..50 mph)
-      function msToMph(ms){ return ms * 2.23694; }
-      
-  // --- Fix for Leaflet-Velocity grid origin ---
-  // Leaflet-Velocity expects header.la1 to be the SOUTH edge (min lat) with positive dy.
-  // Our JSON was exported "north-first" (la1 = north edge). So we:
-  // 1) set la1 to LAT_MIN
-  // 2) keep dy positive
-  // 3) flip the data rows so row 0 corresponds to the south edge.
-  function normalizeVelocityNorthFirstToSouthFirst(records, latMin){
-    if (!Array.isArray(records) || records.length < 2) return records;
-
-    for (const rec of records){
-      if (!rec || !rec.header || !Array.isArray(rec.data)) continue;
-      const nx = rec.header.nx, ny = rec.header.ny;
-      if (!nx || !ny || rec.data.length !== nx*ny) continue;
-
-      // Patch header to south-first convention
-      rec.header.la1 = latMin;
-      rec.header.dy = Math.abs(rec.header.dy || 0);
-
-      // Flip rows (north-first -> south-first)
-      const flipped = new Array(nx*ny);
-      for (let y=0; y<ny; y++){
-        const srcRow = (ny - 1 - y) * nx;
-        const dstRow = y * nx;
-        for (let x=0; x<nx; x++){
-          flipped[dstRow + x] = rec.data[srcRow + x];
-        }
-      }
-      rec.data = flipped;
-    }
-    return records;
+  // If animation frames are ready, sync to clock (will load closest frame).
+  if (window._jetAnim && window._jetAnim.ready && window._jetAnim.frames && window._jetAnim.frames.length){
+    syncJetParticlesToClock();
+    return;
   }
-function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
-      function lerp(a,b,t){ return a + (b-a)*t; }
-      function lerpColor(c1,c2,t){
-        return [
-          Math.round(lerp(c1[0], c2[0], t)),
-          Math.round(lerp(c1[1], c2[1], t)),
-          Math.round(lerp(c1[2], c2[2], t))
-        ];
-      }
-      function rgbCss(c){ return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")"; }
 
-      var MPH_MAX = 50;
-      var c0  = [191,233,255];
-      var c20 = [ 58,160,255];
-      var c30 = [  0, 91,255];
-      var c40 = [  0,200, 83];
-      var c45 = [255,212,  0];
-      var c50 = [255, 45, 45];
-
-      function colorForMph(mph){
-        mph = clamp(mph, 0, MPH_MAX);
-        if (mph <= 20) return rgbCss(lerpColor(c0,  c20, mph/20));
-        if (mph <= 30) return rgbCss(lerpColor(c20, c30, (mph-20)/10));
-        if (mph <= 40) return rgbCss(lerpColor(c30, c40, (mph-30)/10));
-        if (mph <= 45) return rgbCss(lerpColor(c40, c45, (mph-40)/5));
-        return rgbCss(lerpColor(c45, c50, (mph-45)/5));
-      }
-
-      window._jetVelocityLayer = L.velocityLayer({
-        data: data,
-        maxVelocity: 22.35,         // m/s scale inside plugin; just affects legend scaling
-        velocityScale: 0.010,
-        particleAge: 60,
-        lineWidth: 1,
-        opacity: 0.55,
-        displayValues: true,
-        displayOptions: {
-          velocityType: "Jet (250mb)",
-          position: "bottomleft",
-          speedUnit: "mph",
-          emptyString: "No data"
-        },
-        colorScale: ["#bfe9ff","#3aa0ff","#005bff","#00c853","#ffd400","#ff2d2d"]});
-
-      // If the checkbox is already on, attach immediately
-      if (typeof map !== "undefined" && map && map.hasLayer(jetParticlesLayer)){
-        jetParticlesLayer.addLayer(window._jetVelocityLayer);
-      }
-    })
-    .catch(function(err){
-      console.log("Jet particles load failed:", err);
-      // Helpful hint in status box if present
-      try{
-        var st = document.getElementById("status");
-        if (st) st.textContent = "Jet particles failed to load. Check leaflet-velocity files + JSON path.";
-      }catch(e){}
-    });
+  // Fallback: load snapshot
+  if (!window.JET_SNAPSHOT_FILE){
+    setJetAnimText("jetAnimStatus", "No jet frames available (frames.json missing or empty).\n");
+    return;
+  }
+  loadJetVelocityFromUrl(window.JET_SNAPSHOT_FILE).catch(function(e){
+    console.warn("[JetAnim] snapshot load failed:", e);
+    setJetAnimText("jetAnimStatus", "Jet snapshot failed to load (see console).");
+  });
 }
 
 
@@ -3652,6 +3563,7 @@ function normalizeVelocityIfNeeded(data){
 }
 
 async function loadJetVelocityFromUrl(url){
+  if (url && !url.startsWith("http") && !url.startsWith("./") && !url.startsWith("../")) url = "./" + url;
   if (!url) throw new Error("No URL for jet frame.");
   setJetAnimText("jetAnimStatus", "Loading: " + url);
   console.log("[JetAnim] fetch", url);
@@ -3987,7 +3899,7 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
         bannerBottom = brect.bottom || 0;
       }
 
-      var desiredTop = rect.top - bubble.offsetHeight - 38;
+      var desiredTop = rect.top - bubble.offsetHeight - 70; // extra lift so it clears the layer toggle box
       var minTop = bannerBottom + 10;
 
       // Default: above the layers control, aligned right

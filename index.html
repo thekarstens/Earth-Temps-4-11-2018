@@ -3458,10 +3458,29 @@ function ensureJetParticles(){
   }
 
   // Fallback: load snapshot
+  if (!window.JET_SNAPSHOT_FILE){
+    setJetAnimText("jetAnimStatus", "No jet frames available (frames.json missing or empty).\n");
+    return;
+  }
   loadJetVelocityFromUrl(window.JET_SNAPSHOT_FILE).catch(function(e){
     console.warn("[JetAnim] snapshot load failed:", e);
     setJetAnimText("jetAnimStatus", "Jet snapshot failed to load (see console).");
   });
+}
+
+
+// ===== Jet animation config (repo-relative) =====
+window.JET_ANIM_DIR = window.JET_ANIM_DIR || "jet_anim";
+window.JET_MANIFEST_URL = window.JET_MANIFEST_URL || (window.JET_ANIM_DIR + "/frames.json");
+// Optional: if you want snapshot-only fallback, set this to a valid frame json path
+window.JET_SNAPSHOT_FILE = window.JET_SNAPSHOT_FILE || null;
+
+// Safe UI helper (older builds referenced this but didn't define it)
+function setJetAnimText(id, txt){
+  try{
+    var el = document.getElementById(id);
+    if (el) el.textContent = (txt == null ? "" : String(txt));
+  }catch(e){}
 }
 
 async function loadJetFramesManifest(){
@@ -3475,6 +3494,7 @@ async function loadJetFramesManifest(){
       if (typeof it === "string"){ var u = resolveJetFrameUrl(it); out.push({url: u, label: u.split("/").pop()}); }
       else if (it && typeof it.url === "string"){ var u2 = resolveJetFrameUrl(it.url); out.push({url: u2, label: it.label || u2.split("/").pop()}); }
     }
+    if (!window.JET_SNAPSHOT_FILE && out.length){ window.JET_SNAPSHOT_FILE = out[0].url; }
     return out.length ? out : null;
   }catch(e){
     return null;
@@ -3880,7 +3900,7 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
         bannerBottom = brect.bottom || 0;
       }
 
-      var desiredTop = rect.top - bubble.offsetHeight - 22;
+      var desiredTop = rect.top - bubble.offsetHeight - 38;
       var minTop = bannerBottom + 10;
 
       // Default: above the layers control, aligned right

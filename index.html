@@ -3618,7 +3618,7 @@ function setJetAnimText(id, txt){
   if (el) el.textContent = txt;
 }
 
-async async function loadJetFramesManifest(){
+async function loadJetFramesManifest(){
   try{
     var r = await fetch(window.JET_MANIFEST_URL + "?v=" + Date.now(), {cache:"no-store"});
     if (!r.ok) return null;
@@ -3671,7 +3671,7 @@ function normalizeVelocityIfNeeded(data){
   return data;
 }
 
-async async function loadJetVelocityFromUrl(url){
+async function loadJetVelocityFromUrl(url){
   if (!url) throw new Error("No URL for jet frame.");
   url = resolveJetFrameUrl(url);
   setJetAnimText("jetAnimStatus", "Loading: " + url);
@@ -3718,7 +3718,7 @@ async async function loadJetVelocityFromUrl(url){
   setJetAnimText("jetAnimStatus", "Loaded: " + url);
 }
 
-async async function jetAnimInit(){
+async function jetAnimInit(){
   var frames = await loadJetFramesManifest();
   if (!frames){
     // No manifest => keep snapshot-only mode
@@ -3759,7 +3759,7 @@ function parseJetFrameTime(str){
 }
 
 // Pick the closest jet frame to the banner clock, and load it into leaflet-velocity.
-async async function syncJetParticlesToClock(){
+async function syncJetParticlesToClock(){
   try{
     if (!window._jetParticlesOverlayEnabled) return;
     if (!window._jetAnim || !window._jetAnim.ready) return;

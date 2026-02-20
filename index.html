@@ -1090,10 +1090,22 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   font-family: "Lato", Arial, sans-serif;
   /* deep navy base + energy sweep */
   background:
-    radial-gradient(900px 240px at 25% -60px, rgba(59,130,246,0.30), rgba(0,0,0,0) 70%),
-    radial-gradient(780px 220px at 80% -40px, rgba(245,158,11,0.24), rgba(0,0,0,0) 72%),
-    radial-gradient(900px 260px at 65% 40%, rgba(255,255,255,0.07), rgba(0,0,0,0) 65%),
-    linear-gradient(180deg, rgba(11,28,45,0.96), rgba(11,28,45,0.90));
+    /* deep navy base + energy sweep + storm streaks */ 
+    repeating-linear-gradient(120deg,
+      rgba(255,255,255,0.04) 0px,
+      rgba(255,255,255,0.04) 1px,
+      rgba(0,0,0,0.00) 6px,
+      rgba(0,0,0,0.00) 14px),
+    conic-gradient(from 210deg at 50% 35%,
+      rgba(59,130,246,0.18),
+      rgba(0,0,0,0.00) 22%,
+      rgba(245,158,11,0.18) 48%,
+      rgba(0,0,0,0.00) 70%,
+      rgba(59,130,246,0.16)),
+    radial-gradient(900px 240px at 22% -60px, rgba(59,130,246,0.35), rgba(0,0,0,0) 70%),
+    radial-gradient(780px 220px at 82% -40px, rgba(245,158,11,0.30), rgba(0,0,0,0) 72%),
+    radial-gradient(900px 260px at 65% 40%, rgba(255,255,255,0.08), rgba(0,0,0,0) 65%),
+    linear-gradient(180deg, rgba(11,28,45,0.98), rgba(11,28,45,0.92));
 }
 .tvbanner::before{
   content:"";
@@ -1101,7 +1113,8 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   pointer-events:none;
   /* faint clouds + sparkle + snow */
   background-image:
-    radial-gradient(circle at 12% 45%, rgba(255,255,255,0.10) 0 18px, rgba(255,255,255,0.00) 19px),
+    url(\"data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='120'%20viewBox='0%200%20120%20120'%3E%3Cg%20fill='none'%20stroke='white'%20stroke-opacity='0.55'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M60%2010v100M10%2060h100M22%2022l76%2076M98%2022L22%2098'/%3E%3Cpath%20d='M60%2010l-6%2012M60%2010l6%2012M60%20110l-6-12M60%20110l6-12M10%2060l12-6M10%2060l12%206M110%2060l-12-6M110%2060l-12%206'/%3E%3C/g%3E%3C/svg%3E\"),
+radial-gradient(circle at 12% 45%, rgba(255,255,255,0.10) 0 18px, rgba(255,255,255,0.00) 19px),
     radial-gradient(circle at 22% 55%, rgba(255,255,255,0.07) 0 26px, rgba(255,255,255,0.00) 27px),
     radial-gradient(circle at 78% 40%, rgba(255,255,255,0.08) 0 22px, rgba(255,255,255,0.00) 23px),
     radial-gradient(circle at 88% 55%, rgba(255,255,255,0.06) 0 30px, rgba(255,255,255,0.00) 31px),
@@ -1251,6 +1264,86 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
   letter-spacing:1px;
 }
 
+
+/* Wordmark in upper-right (text, not a shield) */
+.banner-wordmark{
+  position:absolute;
+  top:10px;
+  right:14px;
+  text-align:right;
+  line-height:1;
+  pointer-events:none;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
+}
+.banner-wordmark .wm-top{
+  font-weight:900;
+  font-size:12px;
+  letter-spacing:1.6px;
+  text-transform:uppercase;
+  opacity:0.95;
+}
+.banner-wordmark .wm-bottom{
+  font-weight:900;
+  font-size:18px;
+  letter-spacing:1.2px;
+  text-transform:uppercase;
+  background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.72));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  margin-top:2px;
+}
+
+/* Put Weather Terms button neatly in the LOWER-RIGHT of the banner */
+.bb-right{
+  justify-self:end;
+  align-self:end;
+  display:flex;
+  justify-content:flex-end;
+}
+#stormScienceGuideBtn{
+  margin-top: 10px;
+  padding: 10px 14px;
+}
+
+/* Mini legend UNDER the product pill */
+.banner-legend-mini{
+  margin-top:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:6px 10px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.14);
+}
+.banner-legend-mini .blm-label{
+  font-weight:900;
+  font-size:11px;
+  letter-spacing:.8px;
+  text-transform:uppercase;
+  opacity:.92;
+}
+.banner-legend-mini .blm-bar{
+  width:140px;
+  height:10px;
+  border-radius:8px;
+  background: linear-gradient(90deg, rgba(43,131,186,1), rgba(253,216,53,1), rgba(239,71,111,1));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
+}
+
+/* If it gets tight, hide the legend first */
+@media (max-width: 980px){
+  .banner-legend-mini .blm-bar{ width:110px; }
+}
+@media (max-width: 760px){
+  .banner-wordmark{ display:none; } /* mobile: keep it clean */
+  .banner-legend-mini{ display:none; }
+  #stormScienceGuideBtn{ margin-top:0; }
+}
+
+
 /* Keep the layer toggle box below the banner */
 .leaflet-top.leaflet-right{ top: 118px !important; }
 
@@ -1378,7 +1471,12 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 </div>
 <div id="banner" class="tvbanner" role="banner" aria-label="Storm Science Lab banner">
   <div class="banner-wrap">
-    <div class="banner-top">
+    
+    <div class="banner-wordmark" aria-label="Storm Science Lab wordmark">
+      <div class="wm-top">Storm</div>
+      <div class="wm-bottom">Science Lab</div>
+    </div>
+<div class="banner-top">
       <div class="banner-lesson" id="bannerLessonTitle">Lesson 1: Driving Question</div>
       <div class="banner-question" id="bannerDrivingQuestion">
         <span class="dq-label">Question:</span>
@@ -1399,11 +1497,15 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
           <span class="product-kicker">Layer</span>
           <span class="product-value" id="productLabel">RADAR</span>
         </div>
+        <div class="banner-legend-mini" aria-label="Radar legend">
+          <span class="blm-label">Light</span>
+          <span class="blm-bar" aria-hidden="true"></span>
+          <span class="blm-label">Heavy</span>
+        </div>
       </div>
 
       <div class="bb-right">
         <button class="banner-btn banner-btn-blue" id="stormScienceGuideBtn" title="Weather Discovery Terms">
-          <span class="bb-ico" aria-hidden="true">🔎</span>
           <span class="bb-text">Weather Discovery Terms</span>
         </button>
       </div>

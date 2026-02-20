@@ -34,7 +34,8 @@ html, body { height:100%; margin:0; }
   /* Slight boost to make water a touch bluer (subtle, keeps land white/gray) */
   .basemap-tiles{ filter: saturate(1.12) hue-rotate(-4deg); }
   /* Top TV-style banner */
-  .tvbanner{
+  .tvbanner{position:absolute; top:0; left:0; right:0; overflow:hidden;
+
     position:absolute; top:0; left:0; right:0;
     z-index:99999;
     background:rgba(11,28,45,0.94);
@@ -66,18 +67,7 @@ html, body { height:100%; margin:0; }
   .tiny { font:700 11px/1.2 Arial, sans-serif; opacity:.78; }
 
   /* Branding logo (bottom-right, small) */
-  #brandLogo{
-    position:absolute;
-    bottom:6px;
-    right:10px;
-    z-index:100000;
-    width:140px;
-    max-width:24vw;
-    height:auto;
-    opacity:0.95;
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
-    pointer-events:none;
-  }
+  #brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
   /* Leaflet layer control nudge down below banner */
   .leaflet-top.leaflet-right { top: 70px; }
@@ -125,10 +115,7 @@ html, body { height:100%; margin:0; }
 .banner-actions{margin-left:auto;display:flex;align-items:center;gap:10px;}
 .bstatus{margin-left:14px;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis;
   font:800 12px/1 Arial, sans-serif;opacity:.9;}
-#brandLogo{
-  position:absolute;right:18px;bottom:6px;width:210px;z-index:900;pointer-events:none;
-  filter: drop-shadow(0 3px 10px rgba(0,0,0,.35));
-}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 
   /* --- layout tweaks --- */
@@ -286,8 +273,8 @@ html, body { height:100%; margin:0; }
   }
 
   /* Simplify banner footprint */
-  .banner-divider{ display:none; }
-  .banner-bottomline{ padding-top:6px !important; padding-bottom:6px !important; }
+  .banner-divider{height:3px;width:100%;background:#eab35b;opacity:0.95;position:absolute;top:0;left:0;right:0;}
+  .banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
   #modeBtn{ display:none !important; } /* retire student/teacher button */
 
 /* --- Banner: simple classroom layout --- */
@@ -330,16 +317,10 @@ html, body { height:100%; margin:0; }
 
 /* --- Product center --- */
 .banner-product{display:flex;align-items:center;justify-content:center;min-width:240px}
-.product-center{
-  font:900 42px/1 Arial,sans-serif;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  padding:0 10px;
-  white-space:nowrap;
-}
+.product-center{font:900 48px/1 'Lato', Arial, sans-serif;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;text-align:center;}
 
 /* Logo down a bit */
-#brandLogo{bottom:6px !important; right:26px !important;}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 /* --- Option-2 style driving question block --- */
 .banner-left{display:flex;flex-direction:column;gap:2px;min-width:420px;max-width:44vw}
@@ -386,7 +367,7 @@ html, body { height:100%; margin:0; }
 .story-time-stack{margin-top:0 !important;}
 
 /* Logo lower */
-#brandLogo{bottom:0px !important;}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 /* --- Two-line banner layout --- */
 .tvbanner{
@@ -425,12 +406,7 @@ html, body { height:100%; margin:0; }
 .top-question{font-weight:800;font-size:16px;letter-spacing:.2px;text-transform:none;max-width:100%;flex:1 1 100%;text-align:center}
 .top-q-label{font-weight:900;text-transform:uppercase;letter-spacing:.6px}
 
-.banner-bottomline{
-  display:flex;
-  justify-content:center;
-  padding:6px 14px 10px 14px;
-  font-family: Arial, sans-serif;
-}
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 .bottomline-center{
   display:flex;
   align-items:center;
@@ -442,12 +418,7 @@ html, body { height:100%; margin:0; }
 }
 /* Big product word, flexible */
 .banner-product{min-width:200px;display:flex;justify-content:center}
-.product-center{
-  font:900 44px/1 Arial,sans-serif;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  white-space:nowrap;
-}
+.product-center{font:900 48px/1 'Lato', Arial, sans-serif;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;text-align:center;}
 .time-controls{display:flex;align-items:center;gap:10px}
 .btime{font:900 16px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase;white-space:nowrap}
 
@@ -488,7 +459,7 @@ html, body { height:100%; margin:0; }
 }
 
 /* Keep logo low */
-#brandLogo{bottom:0px !important; right:26px !important;}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 /* --- Brand color stripes (from Weather Workshops logo) --- */
 .tvbanner{ position:absolute; }
@@ -531,7 +502,7 @@ html, body { height:100%; margin:0; }
 }
 
 
-.banner-bottomline{padding:6px 14px 12px 14px;}
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 
 
 .map-legend{
@@ -543,7 +514,7 @@ html, body { height:100%; margin:0; }
 .leg-mini-bar{width:120px !important;}
 
 
-#brandLogo{bottom:0px !important; right:14px !important;}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 
 /* Pin START button in top-right of the top banner line */
@@ -556,12 +527,7 @@ html, body { height:100%; margin:0; }
 
 
 /* Orange divider line in the middle (between top line and controls line) */
-.banner-divider{
-  height:3px;
-  width:100%;
-  background:#eab35b; /* brand orange */
-  opacity:0.95;
-}
+.banner-divider{height:3px;width:100%;background:#eab35b;opacity:0.95;position:absolute;top:0;left:0;right:0;}
 
 
 /* Nudge legend tighter into the corner */
@@ -609,16 +575,11 @@ html, body { height:100%; margin:0; }
 }
 
 /* Center RADAR on second row */
-.banner-bottomline{
-  display:flex !important;
-  justify-content:center !important;
-}
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 .banner-product{
   margin:0 auto !important;
 }
-.product-center{
-  text-align:center !important;
-}
+.product-center{font:900 48px/1 'Lato', Arial, sans-serif;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;text-align:center;}
 
 
 /* --- Pin START button to upper-right (top line) --- */
@@ -631,37 +592,27 @@ html, body { height:100%; margin:0; }
 }
 
 /* --- Push logo slightly LOWER than the bottom edge (so it "sits lower") --- */
-#brandLogo{
-  bottom:-12px !important;
-  right:10px !important;
-}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 
 /* Slightly tighter banner height (small) */
 .banner-topline{padding-top:6px !important; padding-bottom:5px !important;}
-.banner-bottomline{padding-top:3px !important; padding-bottom:7px !important;}
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 
 
 /* --- Slight banner shrink (top text + controls) --- */
 .top-lesson{font-size:22px !important;}
 .top-question{font-size:14px !important;}
-.product-center{font-size:38px !important;}
+.product-center{font:900 48px/1 'Lato', Arial, sans-serif;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;text-align:center;}
 .bbtn{padding:7px 10px !important; font-size:12px !important;}
 .bbtn-story{padding:10px 14px !important; font-size:13px !important;}
 #radarOpacity{width:160px !important;}
 .banner-topline{padding-top:7px !important; padding-bottom:4px !important;}
-.banner-bottomline{padding-top:2px !important; padding-bottom:6px !important;}
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 
 
 /* --- Brand logo: smaller + lower --- */
-#brandLogo{
-  width:120px !important;
-  height:auto !important;
-  max-height:64px !important;
-  bottom:-24px !important;
-  right:10px !important;
-  opacity:0.95 !important;
-}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 
 /* TV-style city labels */
@@ -835,22 +786,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
 
 /* --- Brand logo in top-right of banner (no white box) --- */
-#brandLogo{
-  position:absolute !important;
-  top:6px !important;
-  right:10px !important;
-  bottom:auto !important;
-  width:120px !important;
-  max-width:32vw !important;
-  height:auto !important;
-  padding:0 !important;
-  background:transparent !important;
-  border:none !important;
-  border-radius:12px !important;
-  filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important;
-  z-index:100005 !important;
-  pointer-events:none !important;
-}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 .banner-topline .topline-center{ padding-right: 170px !important; }
 
@@ -945,11 +881,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 #stormScienceGuideBtn{ transform: translateY(14px); position:relative; z-index:100012; }
 
 /* Logo: nudge slightly up-right to clear the terms button */
-#brandLogo{
-  top:4px !important;
-  right:8px !important;
-  width:118px !important;
-}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 /* Master clock bubble in map space */
 .clock-bubble{
@@ -1035,7 +967,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 .leaflet-control-zoom{ display:none !important; }
 
 /* Tighten bottomline spacing a hair now that legend moved into banner */
-.banner-bottomline{ padding-top:4px !important; padding-bottom:10px !important; }
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 
 
 
@@ -1370,7 +1302,7 @@ radial-gradient(circle at 12% 45%, rgba(255,255,255,0.10) 0 18px, rgba(255,255,2
 }
 
 /* Hide the old tiny corner logo if present (the banner is now the brand) */
-#brandLogo{ display:none !important; }
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 
 /* === QUICK FIXES: logo + terms drawer + banner sizing + product label === */
@@ -1379,23 +1311,7 @@ radial-gradient(circle at 12% 45%, rgba(255,255,255,0.10) 0 18px, rgba(255,255,2
 html, body{ overflow-x:hidden !important; }
 
 /* Bring back the logo in the upper-right corner */
-#brandLogo{
-  display:block !important;
-  position:absolute !important;
-  top:8px !important;
-  right:12px !important;
-  bottom:auto !important;
-  width:128px !important;
-  max-width:32vw !important;
-  height:auto !important;
-  background:transparent !important;
-  border:none !important;
-  padding:0 !important;
-  border-radius:12px !important;
-  z-index:100005 !important;
-  pointer-events:none !important;
-  filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important;
-}
+#brandLogo{position:absolute !important; top:4px !important; right:10px !important; bottom:auto !important; width:160px !important; max-width:38vw !important; height:auto !important; padding:0 !important; background:transparent !important; border:none !important; border-radius:12px !important; mix-blend-mode:multiply !important; filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important; z-index:100005 !important; pointer-events:none !important;}
 
 /* Make sure the Weather Discovery Terms drawer fully fits on-screen when open */
 #stormScienceGuide{
@@ -1409,7 +1325,7 @@ body.ssg-open #stormScienceGuide{
 
 /* Slightly shrink overall banner footprint */
 .banner-topline{ padding:6px 12px 3px 12px !important; }
-.banner-bottomline{ padding:3px 12px 7px 12px !important; }
+.banner-bottomline{padding:4px 14px 8px 14px;font-family: 'Lato', Arial, sans-serif;}
 .top-lesson{ font-size:20px !important; }
 .top-question{ font-size:13px !important; line-height:1.2 !important; }
 
@@ -1470,6 +1386,8 @@ html, body{ overflow-x: hidden !important; }
 .clock-bubble{ z-index: 5000 !important; cursor: grab; }
 .clock-bubble:active{ cursor: grabbing; }
 
+
+.tvbanner .banner-topline{position:relative;}
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -4578,60 +4496,8 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
     }catch(e){}
   }
 
-      var pad = 6; // keep the clock snug under the banner
-      var desiredTopAboveCtrl = rect.top - bubble.offsetHeight - 10;
-      var minTop = bannerBottom + pad;
 
-      var top = desiredTopAboveCtrl;
-      var placeLeftOfCtrl = false;
-
-      // If we cannot fit above the layers control (because banner is too tall),
-      // keep it just under the banner but shift LEFT so it never covers the toggle box.
-      if (top < minTop){
-        top = minTop;
-        placeLeftOfCtrl = true;
-      } else {
-        top = Math.max(minTop, top);
-      }
-
-      // Right positioning
-      if (placeLeftOfCtrl){
-        // Put bubble to the LEFT of the layers control (10px gap)
-        var right = Math.max(10, window.innerWidth - rect.left + 10);
-        bubble.style.right = right + "px";
-      } else {
-        // Align to the right edge of the layers control
-        var rightGap = Math.max(10, window.innerWidth - rect.right);
-        bubble.style.right = rightGap + "px";
-      }
-
-      bubble.style.top = top + "px";
-    }catch(e){}
-  }
-function setTimeLabel(){
-    var label = formatCentralLabel(curZ);
-    var btl = document.getElementById("bannerTimeLabel");
-    if (btl) btl.textContent = label;
-
-    var cbt = document.getElementById("clockBubbleTime");
-    if (cbt) cbt.textContent = label;
-
-    // Sync scrubber to current time
-    try{
-      var scrub = document.getElementById("cbScrubber");
-      if (scrub){
-        var idx = Math.round((curZ.getTime() - startZ.getTime()) / (STEP_HOURS*3600*1000));
-        if (idx < 0) idx = 0;
-        var max = Math.round((endZ.getTime() - startZ.getTime()) / (STEP_HOURS*3600*1000));
-        scrub.max = String(max);
-        scrub.value = String(idx);
-      }
-    }catch(e){}
-
-    positionClockBubble();
-  }
-
-  function updateProductLabel(){
+function updateProductLabel(){
   var pl = document.getElementById("productLabel");
   if (!pl) return;
 

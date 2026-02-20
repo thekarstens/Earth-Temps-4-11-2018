@@ -1388,6 +1388,20 @@ html, body{ overflow-x: hidden !important; }
 
 
 .tvbanner .banner-topline{position:relative;}
+
+/* ===== Patch: logo regular + bigger (transparent PNG) ===== */
+#brandLogo{
+  mix-blend-mode: normal !important;
+  filter: drop-shadow(0 3px 10px rgba(0,0,0,0.45)) !important;
+  width:160px !important;
+  max-width:42vw !important;
+  height:auto !important;
+  top:6px !important;
+  right:10px !important;
+}
+/* Hide any accidental wordmark text in upper-right (safety) */
+#bannerWordmark, .banner-wordmark, .wordmark{ display:none !important; }
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -1593,6 +1607,18 @@ html, body{ overflow-x: hidden !important; }
   hr = hr % 12; if (hr === 0) hr = 12;
   return m + " " + day + ", " + year + " " + hr + ampm;
 }
+
+  // Update both the banner time label (legacy) and the clock bubble time label (current UI)
+  function setTimeLabel(){
+    try{
+      var txt = formatCentralLabel(curZ);
+      var el1 = document.getElementById("bannerTimeLabel");
+      if (el1) el1.textContent = txt;
+      var el2 = document.getElementById("clockBubbleTime");
+      if (el2) el2.textContent = txt;
+    }catch(e){}
+  }
+
 
   // ---------- Map ----------
   var map = L.map("map", { zoomControl:true }).setView([43.55, -96.73], 6);

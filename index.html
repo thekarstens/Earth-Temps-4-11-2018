@@ -1432,6 +1432,44 @@ body.ssg-open #stormScienceGuide{
 /* Keep the clock bubble above the layer toggle box */
 .clock-bubble{ z-index:3000 !important; }
 
+
+/* ==== QUICK PATCHES (Feb 20) ==== */
+/* Remove wordmark text in upper-right */
+.banner-wordmark{ display:none !important; }
+
+/* Slightly shrink the banner overall */
+.tvbanner .banner-wrap{ padding: 8px 12px !important; }
+.banner-top{ padding-bottom: 6px !important; }
+.banner-lesson{
+  font-size: 18px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Make the center layer label bigger (RADAR / GOES etc.) */
+.product-pill{ padding: 8px 14px !important; }
+.product-kicker{ font-size: 11px !important; letter-spacing: .12em !important; }
+.product-value{
+  font-size: 34px !important;
+  line-height: 1 !important;
+  letter-spacing: .04em !important;
+}
+
+/* Keep terms drawer fully on-screen (no horizontal scroll) */
+html, body{ overflow-x: hidden !important; }
+#stormScienceGuide{
+  right: 10px !important;
+  left: auto !important;
+  max-width: calc(100vw - 20px) !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure clock is always easy to grab above the layers box */
+.clock-bubble{ z-index: 5000 !important; cursor: grab; }
+.clock-bubble:active{ cursor: grabbing; }
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -1531,18 +1569,11 @@ body.ssg-open #stormScienceGuide{
 </div>
 <div id="banner" class="tvbanner" role="banner" aria-label="Storm Science Lab banner">
   <div class="banner-wrap">
-    
-    <div class="banner-wordmark" aria-label="Storm Science Lab wordmark">
-      <div class="wm-top">Storm</div>
-      <div class="wm-bottom">Science Lab</div>
+<div class="wm-bottom">Science Lab</div>
     </div>
 <div class="banner-top">
-      <div class="banner-lesson" id="bannerLessonTitle">Lesson 1: Driving Question</div>
-      <div class="banner-question" id="bannerDrivingQuestion">
-        <span class="dq-label">Question:</span>
-        <span class="dq-text">How can we use real-time weather data to make safer decisions?</span>
-      </div>
-    </div>
+      <div class="banner-lesson" id="bannerLessonTitle">Lesson 1: Why can a blizzard happen in April when spring has already begun?</div>
+</div>
 
     <div class="banner-bottom">
       <div class="bb-left">
@@ -2246,7 +2277,7 @@ function updateCityLabels(){
 
   // ---------- Story (Google Sheet) ----------
   var SHEET_ID = "17Hzg7R2fSHJGbOKAKMqG4QAqA1GlSJwFM-SQwPhQObY";
-  var SHEET_TAB = "April Blizzard Story";
+  var SHEET_TAB = "Day1";
   var storyItems = [];
   var storyMarkers = [];
   var storyIndex = 0;
@@ -4494,17 +4525,58 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
       if (!bubble) return;
 
       var ctrl = document.querySelector(".leaflet-control-layers");
-      if (!ctrl) return;
-
-      var rect = ctrl.getBoundingClientRect();
-
-      // Banner bottom (use actual id in this file)
+      var corner = document.querySelector(".leaflet-top.leaflet-right"); // container for layers control
       var banner = document.getElementById("banner") || document.querySelector(".tvbanner");
+
       var bannerBottom = 0;
       if (banner){
         var brect = banner.getBoundingClientRect();
         bannerBottom = brect.bottom || 0;
       }
+
+      if (!ctrl) return;
+
+      // Make sure the layers control sits far enough below the banner
+      // so the clock bubble can live directly ABOVE it (easy to grab).
+      var bubbleH = bubble.offsetHeight || 72;
+      var desiredCornerTop = Math.ceil(bannerBottom + bubbleH + 18);
+
+      if (corner){
+        // If current corner top is too small, push it down.
+        var csTop = parseFloat((corner.style.top || "0").replace("px","")) || 0;
+        // If Leaflet is using CSS top (not inline), csTop may be 0; use bounding rect instead.
+        var cornerRect = corner.getBoundingClientRect();
+        var effectiveTop = cornerRect.top || csTop;
+
+        if (effectiveTop < desiredCornerTop){
+          corner.style.top = desiredCornerTop + "px";
+        }
+      }
+
+      // Recompute rect after any shift
+      var rect = ctrl.getBoundingClientRect();
+
+      // Place bubble right above the layers control, but never under the banner
+      var gap = 8;
+      var top = rect.top - bubbleH - gap;
+      var minTop = bannerBottom + 8;
+      if (top < minTop){
+        // If still too tight, push layers control a bit more and recompute once
+        if (corner){
+          corner.style.top = (minTop + bubbleH + 18) + "px";
+          rect = ctrl.getBoundingClientRect();
+          top = rect.top - bubbleH - gap;
+        }
+        top = Math.max(minTop, top);
+      }
+
+      // Align bubble with the layers control (right edge)
+      var rightGap = Math.max(10, window.innerWidth - rect.right);
+      bubble.style.right = rightGap + "px";
+      bubble.style.top = Math.round(top) + "px";
+      bubble.style.zIndex = 5000;
+    }catch(e){}
+  }
 
       var pad = 6; // keep the clock snug under the banner
       var desiredTopAboveCtrl = rect.top - bubble.offsetHeight - 10;

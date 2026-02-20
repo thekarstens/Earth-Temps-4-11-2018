@@ -2562,10 +2562,6 @@ if (goesResetBtn) goesResetBtn.onclick = function(){
       try { map.removeLayer(frontsDecorGroup); } catch(e){}
       frontsDecorGroup = null;
     }
-    if (frontsStationaryBaseGroup){
-      try { map.removeLayer(frontsStationaryBaseGroup); } catch(e){}
-      frontsStationaryBaseGroup = null;
-    }
   }
 
   function buildFrontDecorators(_retry){
@@ -4545,28 +4541,3 @@ function updateAlerts(){
 
 </body>
 </html>
-    // Build stationary baseline as alternating red/blue segments (matches symbol colors)
-    if (stationaryLines.length){
-      frontsStationaryBaseGroup = L.layerGroup();
-
-      const colors = ['#1e88e5', '#e53935']; // blue then red (alternate)
-      const makeSegments = (latlngs) => {
-        // latlngs may be nested for multi-polylines; flatten to simple arrays
-        const parts = Array.isArray(latlngs[0]) ? latlngs : [latlngs];
-        parts.forEach(part => {
-          for (let i = 0; i < part.length - 1; i++){
-            const seg = [part[i], part[i+1]];
-            const color = colors[i % colors.length];
-            L.polyline(seg, { color, weight: 5, opacity: 0.95, interactive: false }).addTo(frontsStationaryBaseGroup);
-          }
-        });
-      };
-
-      stationaryLines.forEach(lineLayer => {
-        try { makeSegments(lineLayer.getLatLngs()); } catch(e){}
-      });
-
-      if (frontsEnabled) frontsStationaryBaseGroup.addTo(map);
-    }
-
-

@@ -4042,18 +4042,6 @@ if (e.layer === overlays["Composite Radar (Observed)"]) { obsRadarEnabled = fals
       }
     }catch(e){}
   }
-      // Place bubble just above the layers control, aligned to its right edge,
-      // but never higher than the bottom of the banner.
-      var top = rect.top - bubble.offsetHeight - 10;
-      top = Math.max(bannerBottom + 10, top);
-
-      var rightGap = Math.max(10, window.innerWidth - rect.right);
-      bubble.style.top = top + "px";
-      bubble.style.right = (rightGap) + "px";
-    }catch(e){}
-  }
-
-
   function setTimeLabel(){
     var label = formatCentralLabel(curZ);
     var btl = document.getElementById("bannerTimeLabel");

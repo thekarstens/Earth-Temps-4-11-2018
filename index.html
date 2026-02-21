@@ -1402,6 +1402,30 @@ html, body{ overflow-x: hidden !important; }
 /* Hide any accidental wordmark text in upper-right (safety) */
 #bannerWordmark, .banner-wordmark, .wordmark{ display:none !important; }
 
+
+/* ===== Banner layout tweak: move product cluster left + dock clock bubble beside RADAR ===== */
+.bb-center{ justify-self:start !important; margin-left:60px !important; }
+.product-row{ display:flex; align-items:center; gap:14px; justify-content:flex-start; }
+.clock-anchor{ display:flex; align-items:center; }
+
+/* When clock bubble is docked in banner, make it non-absolute and compact */
+.clock-bubble.docked{
+  position:relative !important;
+  top:auto !important;
+  right:auto !important;
+  left:auto !important;
+  margin:0 !important;
+  padding:8px 10px !important;
+  border-radius:14px !important;
+  z-index:100010 !important;
+}
+/* Slightly tighten clock text to fit banner */
+.clock-bubble.docked .cb-time{ font-size:15px !important; }
+.clock-bubble.docked .cb-label{ font-size:10px !important; }
+.clock-bubble.docked .cb-row{ gap:8px !important; }
+.clock-bubble.docked .cb-btn{ padding:7px 9px !important; font-size:13px !important; }
+.clock-bubble.docked .cb-scrubber{ margin-top:6px !important; }
+
 </style>
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
@@ -1560,10 +1584,14 @@ html, body{ overflow-x: hidden !important; }
       </div>
 
       <div class="bb-center">
-        <div class="product-pill" aria-label="Current layer">
+        <div class="product-row">
+<div class="product-pill" aria-label="Current layer">
           <span class="product-kicker">Layer</span>
           <span class="product-value" id="productLabel">RADAR</span>
         </div>
+  <div id="clockAnchor" class="clock-anchor"></div>
+</div>
+
         <div class="banner-legend-mini" aria-label="Radar legend">
           <span class="blm-label">Light</span>
           <span class="blm-bar" aria-hidden="true"></span>
@@ -1963,7 +1991,8 @@ if (toolMeasureBtn) toolMeasureBtn.onclick = function(){
   if (openLessonBtn){
     openLessonBtn.onclick = function(){
       try{
-        if (storyPanelEl && storyPanelEl.classList.contains("story-open")) closeGuide();
+        storyStarted = true;
+        if (storyPanelEl && storyPanelEl.classList.contains("story-open")) collapseGuide();
         else openGuide();
       }catch(e){}
     };
@@ -2473,6 +2502,8 @@ function openGuide(){
   storyPanelEl.classList.add("story-open");
   document.body.classList.remove("guide-collapsed");
 }
+function closeGuide(){ collapseGuide(); }
+
 function collapseGuide(){
   if (!storyPanelEl) return;
   storyPanelEl.classList.remove("story-open");
@@ -4912,6 +4943,28 @@ function updateAlerts(){
       .replace(/'/g,"&#039;");
   }
 
+})();
+</script>
+
+
+<script>
+/* ===== Dock clock bubble next to RADAR label inside banner ===== */
+(function(){
+  function dockClock(){
+    var anchor = document.getElementById('clockAnchor');
+    var bubble = document.querySelector('.clock-bubble');
+    if (!anchor || !bubble) return;
+    if (!bubble.classList.contains('docked')){
+      bubble.classList.add('docked');
+      anchor.appendChild(bubble);
+    }
+  }
+  // Run after initial layout and again shortly after (Leaflet may create controls later)
+  window.addEventListener('load', function(){
+    dockClock();
+    setTimeout(dockClock, 300);
+    setTimeout(dockClock, 1200);
+  });
 })();
 </script>
 

@@ -5,6 +5,12 @@
 <title>Apr 2018 Case Study – Radar + Alerts</title>
 
 <script>
+// === Story sheet config (Published-to-web) ===
+// You gave this published link:
+
+
+
+<script>
 // === Story sheet config (patched) ===
 window.STORY_SHEET_ID = "17Hzg7R2fSHJGbOKAKMqG4QAqA1GlSJwFM-SQwPhQObY";               // Spreadsheet id for: April Blizzard Story
 window.STORY_SHEET_TAB = "Day1";                    // Tab name
@@ -1633,6 +1639,39 @@ html, body{ overflow-x: hidden !important; }
 }
 </style>
 
+
+<style>
+/* === Banner tune (v5) === */
+
+/* Keep Open Lesson where it was (undo any accidental vertical push) */
+.bb-left{ align-self: center !important; }
+#openLessonBtn{ margin-top: 0 !important; }
+
+/* Put Weather Discovery Terms under the logo WITHOUT pushing other items down */
+.bb-right{ position: relative !important; align-self: start !important; }
+#stormScienceGuideBtn{
+  position: absolute !important;
+  right: 0 !important;
+  top: 98px !important;        /* moved DOWN a bit more than v4 */
+  margin-top: 0 !important;
+}
+
+/* Center the legend under the bubbles above it */
+.banner-legend-mini, .banner-legend-under{
+  margin: 6px auto 0 auto !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* If legend is inside a grid row, let it span and center */
+.banner-legend-mini, .banner-legend-under{
+  max-width: 520px !important;
+}
+
+/* Safety: don't let banner height explode */
+.tvbanner .banner-wrap{ padding-bottom: 8px !important; }
+</style>
+
 </head>
 
 <body>
@@ -2596,13 +2635,62 @@ function safeLink(url){
     renderStory(0, false);
   }
 
+  
+  // --- CSV parser (handles quoted commas) ---
+  function parseCSV(text){
+    var rows = [];
+    var row = [];
+    var cur = "";
+    var inQ = false;
+    for (var i=0;i<text.length;i++){
+      var ch = text[i];
+      var nxt = text[i+1];
+      if (inQ){
+        if (ch === '"' && nxt === '"'){ cur += '"'; i++; continue; }
+        if (ch === '"'){ inQ = false; continue; }
+        cur += ch;
+      } else {
+        if (ch === '"'){ inQ = true; continue; }
+        if (ch === ','){ row.push(cur); cur=""; continue; }
+        if (ch === '\r'){ continue; }
+        if (ch === '\n'){ row.push(cur); rows.push(row); row=[]; cur=""; continue; }
+        cur += ch;
+      }
+    }
+    if (cur.length || row.length){ row.push(cur); rows.push(row); }
+    // drop trailing blank lines
+    while (rows.length && rows[rows.length-1].every(function(x){ return (x||"").trim()===""; })) rows.pop();
+    return rows;
+  }
+
   function loadStory(){
-    var url = "https://opensheet.elk.sh/" + SHEET_ID + "/" + encodeURIComponent(SHEET_TAB);
-    fetch(url).then(function(r){
+    // Use GViz CSV (works when sheet is shared "Anyone with link can view")
+    var url = "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
+              "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(SHEET_TAB);
+
+    fetch(url, {cache:"no-store"}).then(function(r){
       if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
+      return r.text();
+    }).then(function(csvText){
+      var table = parseCSV(csvText || "");
+      if (!table.length){ return []; }
+
+      var headers = table.shift().map(function(h){
+        return (h || "").trim().toLowerCase();
+      });
+
+      var rows = table.map(function(cols){
+        var obj = {};
+        for (var i=0;i<headers.length;i++){
+          var key = headers[i] || ("col" + i);
+          obj[key] = (cols[i] == null) ? "" : String(cols[i]).trim();
+        }
+        return obj;
+      });
+
+      return rows;
     }).then(function(rows){
-      // Normalize rows
+      // Normalize rows (same fields you already use)
       storyItems = (rows || []).map(function(r){
         var lat = parseFloat(r.lat);
         var lon = parseFloat(r.lon);
@@ -2626,9 +2714,22 @@ function safeLink(url){
       });
 
       if (!storyItems.length) {
-        storyBodyEl.innerHTML = "<p class='tiny'>No rows found in your Google Sheet tab '" + SHEET_TAB + "'.</p>";
+        storyBodyEl.innerHTML = "<p class='tiny'>No story rows found. Check: sheet shared as <b>Anyone with the link → Viewer</b>, and tab name <b>" + SHEET_TAB + "</b>.</p>";
         return;
       }
+
+      // Build stations + show first step
+      buildStoryStations();
+    }).catch(function(err){
+      console.error("Story load error:", err);
+      if (storyBodyEl){
+        storyBodyEl.innerHTML = "<p class='tiny'><b>Story didn't load.</b><br/>" +
+          "Make sure the Google Sheet is shared as <b>Anyone with the link → Viewer</b>.<br/>" +
+          "Then reload. (Console has details.)</p>";
+      }
+    });
+  }
+
 
       buildStoryMarkers();
       setStatus("Story: loaded " + storyItems.length + " stations");

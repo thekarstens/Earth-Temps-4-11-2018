@@ -1974,6 +1974,8 @@ html, body{ overflow-x: hidden !important; }
 
   // ---------- Map ----------
   var map = L.map("map", { zoomControl:true }).setView([43.55, -96.73], 6);
+  // Expose Leaflet map globally so other UI modules (side panels, etc.) can call map.invalidateSize()
+  window.map = map;
 
   // Custom lower-right zoom buttons
   var zoomCornerPlus = document.getElementById('zoomCornerPlus');

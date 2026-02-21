@@ -3,6 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <title>Apr 2018 Case Study – Radar + Alerts</title>
+
+<script>
+// === Story sheet config (patched) ===
+window.STORY_SHEET_ID = "17Hzg7R2fSHJGbOKAKMqG4QAqA1GlSJwFM-SQwPhQObY";               // Spreadsheet id for: April Blizzard Story
+window.STORY_SHEET_TAB = "Day1";                    // Tab name
+window.buildStoryCsvUrl = function() {
+  const id = window.STORY_SHEET_ID;
+  const tab = window.STORY_SHEET_TAB;
+  // GViz CSV is reliable when the sheet is Published to the web OR shared as "Anyone with link can view"
+  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+};
+</script>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 
@@ -20,6 +33,16 @@
   }
 
 </script>
+
+<script>
+// Robust fetch helper (gives clear console errors)
+async function fetchText(url){
+  const r = await fetch(url, {cache:"no-store"});
+  if(!r.ok) throw new Error(`Fetch failed ${r.status}: ${url}`);
+  return await r.text();
+}
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
 <script>
@@ -1472,6 +1495,63 @@ html, body{ overflow-x: hidden !important; }
   right: 260px !important;     /* positioned just right of RADAR */
   z-index: 6000 !important;
 }
+</style>
+
+
+<style>
+/* === Banner tweaks (Feb20 v2) === */
+
+/* bring bottom of banner UP (gain map space) */
+.banner-bottomline{ padding: 2px 14px 6px 14px !important; }
+.banner-topline{ padding: 6px 14px 2px 14px !important; }
+.tvbanner{ border-bottom-width: 1px !important; }
+
+/* Shift the whole "middle bubble cluster" (RADAR + TIME + legend group) to the RIGHT */
+.bottomline-center{ transform: translateX(40px) !important; }
+
+/* Legend smaller and tucked under RADAR */
+.banner-legend-under,
+.banner-legend-mini{
+  padding: 4px 8px !important;
+  border-radius: 10px !important;
+}
+.banner-legend-under .leg-mini-bar,
+.banner-legend-mini .blm-bar{
+  width: 110px !important;
+  height: 8px !important;
+}
+.banner-legend-under .leg-mini-label,
+.banner-legend-mini .blm-label{
+  font-size: 10px !important;
+  letter-spacing: .6px !important;
+}
+
+/* Try to tuck legend closer to RADAR label */
+.banner-legend-under, .banner-legend-mini{ margin-top: 4px !important; }
+.banner-product{ margin-bottom: 2px !important; }
+
+/* Move Weather Discovery Terms button UP under logo and keep tight */
+#stormScienceGuideBtn{
+  position:absolute !important;
+  right:14px !important;
+  top:54px !important;     /* under logo area */
+  transform:none !important;
+  margin-top:0 !important;
+  z-index:100020 !important;
+}
+
+/* Ensure logo sits in upper-right and has room */
+#brandLogo{
+  top:8px !important;
+  right:10px !important;
+}
+
+/* Keep drawer fully on screen */
+#stormScienceGuide{ max-width: calc(100vw - 20px) !important; }
+
+/* Nudge layer control down slightly less since banner is shorter */
+.leaflet-top.leaflet-right{ top: 110px !important; }
+
 </style>
 
 </head>

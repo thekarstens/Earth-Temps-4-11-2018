@@ -114,6 +114,67 @@ html, body { height:100%; margin:0; }
     box-shadow: 0 8px 22px rgba(0,0,0,.22);
     white-space:nowrap;
   }
+
+/* ===== Banner button texture (imported) ===== */
+.banner-btn{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  border-radius: 16px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,0.18);
+  cursor:pointer;
+  font-family:"Lato", Arial, sans-serif;
+  font-weight:900;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  user-select:none;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+  overflow:hidden;
+  white-space:nowrap;
+}
+.banner-btn .bb-ico{ font-size: 16px; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); }
+.banner-btn .bb-text{ font-size: 14px; }
+
+/* glossy highlight */
+.banner-btn::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.10) 45%, rgba(0,0,0,0.10));
+  opacity:0.55;
+  pointer-events:none;
+}
+.banner-btn::after{
+  content:"";
+  position:absolute;
+  left:-40%;
+  top:-30%;
+  width: 60%;
+  height: 160%;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.35), rgba(255,255,255,0));
+  transform: rotate(20deg);
+  opacity:0.0;
+  pointer-events:none;
+  transition: opacity 180ms ease;
+}
+.banner-btn:hover::after{ opacity:0.75; }
+.banner-btn:active{ transform: translateY(1px); }
+
+/* gold / blue variants */
+.banner-btn-gold{
+  color:#111;
+  border-color: rgba(0,0,0,0.22);
+  background: linear-gradient(180deg, #ffe66b, #fdd835 45%, #f59e0b);
+}
+.banner-btn-blue{
+  color:#fff;
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8 55%, #0b3b91);
+  border-color: rgba(255,255,255,0.22);
+}
+
+
   .open-lesson-btn:hover{ filter:brightness(0.98); }
 
 
@@ -1074,37 +1135,6 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
 <script src="./leaflet-velocity.min.js"></script>
-<style>
-/* === Feb21 updates: single-line banner + simplified Weather Terms panel === */
-
-/* Single-line banner: make it shorter to gain map space */
-.banner-topline{ padding:6px 14px 4px 14px !important; }
-.banner-bottomline{ padding:2px 14px 6px 14px !important; }
-
-/* Single-line lesson text sizing (long line) */
-.topline-center{ flex-direction:row !important; align-items:center !important; justify-content:center !important; }
-.top-lesson{
-  font-size:20px !important;
-  line-height:1.1 !important;
-  text-transform:none !important;
-  letter-spacing:.2px !important;
-  white-space:normal !important;
-  text-align:center !important;
-  max-width:1200px;
-}
-@media (max-width: 900px){
-  .top-lesson{ font-size:16px !important; }
-}
-@media (max-width: 640px){
-  .top-lesson{ font-size:14px !important; }
-}
-
-/* Hide legacy "Question" line artifacts just in case */
-.top-question, .top-sep, .top-q-label{ display:none !important; }
-
-/* Weather Discovery Terms: remove the tab row (This Scene / All Terms) */
-.ssg-tabs{ display:none !important; }
-</style>
 </head>
 
 <body>
@@ -1201,8 +1231,10 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 <div id="banner" class="tvbanner">
   <div class="banner-topline" role="banner">
     <div class="topline-center">
-      <span class="top-lesson">Lesson 1: Why can a blizzard happen in April when spring has already begun?</span>
-</div>
+      <span class="top-lesson">Lesson 1: Driving Question</span>
+      <span class="top-sep">—</span>
+      <span class="top-question"><span class="top-q-label">Question:</span> How can we use real-time weather data to make safer decisions?</span>
+    </div>
 </div>
   <div class="banner-divider" aria-hidden="true"></div>
 
@@ -1227,7 +1259,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
         </div>
   </div>
   <div class="bl-right">
-    <button class="bbtn" id="stormScienceGuideBtn" title="Weather Discovery Terms">WEATHER DISCOVERY TERMS</button>
+    <button class="banner-btn banner-btn-blue" id="stormScienceGuideBtn" title="Weather Discovery Terms">WEATHER DISCOVERY TERMS</button>
   </div>
 </div>
   </div>
@@ -4449,7 +4481,7 @@ function updateAlerts(){
   if (!btn || !panel || !body) return;
 
   // ---------- State ----------
-  var mode = "all"; // "scene" or "all"
+  var mode = "scene"; // "scene" or "all"
   var q = "";
 
   function openPanel(){

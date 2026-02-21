@@ -1554,6 +1554,85 @@ html, body{ overflow-x: hidden !important; }
 
 </style>
 
+
+<style>
+/* === Banner alignment fix (v3) === */
+
+/* Move the main banner control cluster (Open Lesson + RADAR + TIME + legend) to the RIGHT */
+.bottomline-center{
+  transform: translateX(210px) !important; /* was too small; matches screenshot offset */
+}
+
+/* Keep it from running off screen on smaller widths */
+@media (max-width: 1100px){
+  .bottomline-center{ transform: translateX(140px) !important; }
+}
+@media (max-width: 900px){
+  .bottomline-center{ transform: translateX(70px) !important; }
+}
+@media (max-width: 760px){
+  .bottomline-center{ transform: none !important; }
+}
+
+/* Weather Terms button: sit UNDER the logo (not overlapping it) */
+#stormScienceGuideBtn{
+  right: 14px !important;
+  top: 86px !important;    /* moved DOWN so it clears the logo */
+}
+
+/* Give the logo a touch more room */
+#brandLogo{
+  top: 8px !important;
+  right: 10px !important;
+}
+</style>
+
+
+<style>
+/* === Banner alignment fix (v4 - correct selectors) === */
+
+/* Shift the LEFT/MIDDLE cluster (Open Lesson + RADAR + TIME + legend) to the RIGHT */
+.bb-left, .bb-center{
+  transform: translateX(200px) !important;
+}
+/* The mini legend lives under the product pill in most versions */
+.banner-legend-mini, .banner-legend-under{
+  transform: translateX(200px) !important;
+}
+
+/* Responsive fallbacks so it doesn't run off screen */
+@media (max-width: 1100px){
+  .bb-left, .bb-center, .banner-legend-mini, .banner-legend-under{
+    transform: translateX(140px) !important;
+  }
+}
+@media (max-width: 900px){
+  .bb-left, .bb-center, .banner-legend-mini, .banner-legend-under{
+    transform: translateX(70px) !important;
+  }
+}
+@media (max-width: 760px){
+  .bb-left, .bb-center, .banner-legend-mini, .banner-legend-under{
+    transform: none !important;
+  }
+}
+
+/* Weather Terms button: undo any absolute positioning and tuck under logo */
+#stormScienceGuideBtn{
+  position: relative !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin-top: 44px !important;  /* sits under the logo */
+}
+
+/* Make sure bb-right aligns at the top-right */
+.bb-right{
+  align-self: start !important;
+  justify-self: end !important;
+}
+</style>
+
 </head>
 
 <body>

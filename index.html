@@ -1981,7 +1981,28 @@ html, body{ overflow-x: hidden !important; }
   if (zoomCornerPlus) zoomCornerPlus.onclick = function(){ map.zoomIn(); };
   if (zoomCornerMinus) zoomCornerMinus.onclick = function(){ map.zoomOut(); };
 
-  // Keep the clock bubble pinned above the layer control
+  
+  // --- Clock bubble docking (defined here to avoid ReferenceError) ---
+  function positionClockBubble(){
+    try{
+      var bubble = document.getElementById('clockBubble');
+      var anchor = document.getElementById('clockAnchor');
+      if(!bubble || !anchor) return;
+      // Move bubble into banner anchor so it lives inside the banner (not floating over map)
+      if (bubble.parentElement !== anchor){
+        anchor.appendChild(bubble);
+      }
+      bubble.style.position = 'relative';
+      bubble.style.left = '0';
+      bubble.style.top = '0';
+      bubble.style.margin = '0';
+      bubble.style.transform = 'none';
+    }catch(e){
+      console.warn('positionClockBubble failed', e);
+    }
+  }
+
+// Keep the clock bubble pinned above the layer control
   window.addEventListener('resize', function(){ setTimeout(positionClockBubble, 50); });
   setTimeout(positionClockBubble, 300);
 
@@ -2823,6 +2844,7 @@ function safeLink(url){
     });
   }
 
+})();  // end main IIFE
 </script>
 
 

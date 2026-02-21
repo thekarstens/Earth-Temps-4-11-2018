@@ -2745,28 +2745,84 @@ function safeLink(url){
     return rows;
   }
 
+  
+  // --- CSV parser (handles quoted commas) ---
+  function parseCSV(text){
+    var rows = [];
+    var row = [];
+    var cur = "";
+    var inQ = false;
+    for (var i=0;i<text.length;i++){
+      var ch = text[i];
+      var nxt = text[i+1];
+      if (inQ){
+        if (ch === '"' && nxt === '"'){ cur += '"'; i++; continue; }
+        if (ch === '"'){ inQ = false; continue; }
+        cur += ch;
+      } else {
+        if (ch === '"'){ inQ = true; continue; }
+        if (ch === ','){ row.push(cur); cur=""; continue; }
+        if (ch === '\r'){ continue; }
+        if (ch === '\n'){ row.push(cur); rows.push(row); row=[]; cur=""; continue; }
+        cur += ch;
+      }
+    }
+    if (cur.length || row.length){ row.push(cur); rows.push(row); }
+    while (rows.length && rows[rows.length-1].every(function(x){ return (x||"").trim()===""; })) rows.pop();
+    return rows;
+  }
+
   function loadStory(){
-    // Use GViz CSV (works when sheet is shared "Anyone with link can view")
-    var url = "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
-              "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(SHEET_TAB);
+    // OpenSheet proxy is most reliable when running from file:// (CORS-friendly)
+    var url = "https://opensheet.elk.sh/" + SHEET_ID + "/" + encodeURIComponent(SHEET_TAB);
 
     fetch(url, {cache:"no-store"}).then(function(r){
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.text();
-    }).then(function(csvText){
-      var table = parseCSV(csvText || "");
-      if (!table.length){ return []; }
-
-      var headers = table.shift().map(function(h){
-        return (h || "").trim().toLowerCase();
+      if(!r.ok) throw new Error("OpenSheet HTTP " + r.status);
+      return r.json();
+    }).then(function(rows){
+      storyItems = (rows || []).map(function(r){
+        var lat = parseFloat(r.lat);
+        var lon = parseFloat(r.lon);
+        return {
+          id: r.id,
+          title: r.title || "",
+          text: r.text || "",
+          lat: isFinite(lat) ? lat : null,
+          lon: isFinite(lon) ? lon : null,
+          image: r.image || "",
+          video: r.video || "",
+          terms: r.terms || "",
+          order: parseFloat(r.order)
+        };
+      })
+      .filter(function(x){ return x.title || x.text || (x.lat!=null && x.lon!=null); })
+      .sort(function(a,b){
+        var ao = isFinite(a.order) ? a.order : 9999;
+        var bo = isFinite(b.order) ? b.order : 9999;
+        return ao - bo;
       });
 
-      var rows = table.map(function(cols){
-        var obj = {};
-        for (var i=0;i<headers.length;i++){
-          var key = headers[i] || ("col" + i);
-          obj[key] = (cols[i] == null) ? "" : String(cols[i]).trim();
-        }
+      if (!storyItems.length) {
+        storyBodyEl.innerHTML = "<p class='tiny'>No story rows found on tab <b>" + SHEET_TAB + "</b>. Check the tab name and headers.</p>";
+        return;
+      }
+      buildStoryStations();
+    }).catch(function(err){
+      console.error("Story load error:", err);
+      if (storyBodyEl){
+        storyBodyEl.innerHTML =
+          "<p class='tiny'><b>Story didn't load.</b><br/>" +
+          "Likely causes:<br/>" +
+          "• Tab name mismatch (must be exactly <b>" + SHEET_TAB + "</b>)<br/>" +
+          "• Sheet not shared as <b>Anyone with the link → Viewer</b><br/><br/>" +
+          "Test this URL in your browser:<br/>" +
+          "<span style='word-break:break-all; font-size:11px;'>" +
+          "https://opensheet.elk.sh/" + SHEET_ID + "/" + encodeURIComponent(SHEET_TAB) +
+          "</span></p>";
+      }
+    });
+  }
+
         return obj;
       });
 
@@ -2813,13 +2869,7 @@ function safeLink(url){
   }
 
 
-      buildStoryMarkers();
-      setStatus("Story: loaded " + storyItems.length + " stations");
-    }).catch(function(err){
-      storyBodyEl.innerHTML = "<p class='tiny'>Could not load story from Google Sheet. Check that the sheet is published, and the tab name is '" + SHEET_TAB + "'.</p>";
-      setStatus("Story load failed");
-    });
-  }
+
 
   
 // Banner actions
@@ -5307,6 +5357,26 @@ function updateAlerts(){
     setTimeout(dockClock, 300);
     setTimeout(dockClock, 1200);
   });
+})();
+</script>
+
+
+<script>
+(function(){
+  try{
+    if (location.protocol === "file:"){
+      console.warn("Running from file:// — browser will block fetch() for local files. Local GeoJSON/PNG fetches will fail unless hosted.");
+      var el = document.getElementById("fileProtocolWarning");
+      if(!el){
+        el = document.createElement("div");
+        el.id = "fileProtocolWarning";
+        el.style.cssText = "position:fixed;left:10px;bottom:10px;z-index:999999;background:rgba(0,0,0,.55);color:#fff;padding:8px 10px;border-radius:10px;font:12px/1.2 Lato,Arial;max-width:420px;";
+        el.innerHTML = "Note: opened as <b>file://</b>. Some local overlays may not load due to browser security. Story uses a CORS-safe proxy.";
+        document.body.appendChild(el);
+        setTimeout(function(){ el.remove(); }, 9000);
+      }
+    }
+  }catch(e){}
 })();
 </script>
 

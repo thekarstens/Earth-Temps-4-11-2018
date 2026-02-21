@@ -1008,7 +1008,7 @@ body.ssg-open #stormScienceGuide{ transform: translateX(0); }
 
 
 /* =========================================================
-   Storm Science Lab – Modular Banner (Option 1 inspired)
+   Storm  – Modular Banner (Option 1 inspired)
    Keeps HTML buttons + driving question (editable + responsive)
    ========================================================= */
 
@@ -1406,6 +1406,31 @@ html, body{ overflow-x: hidden !important; }
 
 <link rel="stylesheet" href="./leaflet-velocity.min.css"/>
 <script src="./leaflet-velocity.min.js"></script>
+
+<style>
+/* --- Banner Adjustments --- */
+
+/* Shrink banner height slightly */
+.banner-topline {
+  padding: 6px 14px 4px 14px !important;
+}
+
+/* Make single-line lesson bigger and left aligned */
+.top-lesson {
+  font-size: 32px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  width: 100% !important;
+  text-align: left !important;
+  margin-left: 20px !important;
+}
+
+/* Remove any separator dash */
+.top-sep {
+  display: none !important;
+}
+</style>
+
 </head>
 
 <body>
@@ -1499,9 +1524,9 @@ html, body{ overflow-x: hidden !important; }
     Tip: Later we can auto-fill “This Scene” by adding a <b>terms</b> column to your story sheet.
   </div>
 </div>
-<div id="banner" class="tvbanner" role="banner" aria-label="Storm Science Lab banner">
+<div id="banner" class="tvbanner" role="banner" aria-label="Storm  banner">
   <div class="banner-wrap">
-<div class="wm-bottom">Science Lab</div>
+<div class="wm-bottom"></div>
     </div>
 <div class="banner-top">
       <div class="banner-lesson" id="bannerLessonTitle">Lesson 1: Why can a blizzard happen in April when spring has already begun?</div>

@@ -4,24 +4,6 @@
 <meta charset="utf-8" />
 <title>Apr 2018 Case Study – Radar + Alerts</title>
 
-<script>
-// === Story sheet config (Published-to-web) ===
-// You gave this published link:
-
-
-
-<script>
-// === Story sheet config (patched) ===
-window.STORY_SHEET_ID = "17Hzg7R2fSHJGbOKAKMqG4QAqA1GlSJwFM-SQwPhQObY";               // Spreadsheet id for: April Blizzard Story
-window.STORY_SHEET_TAB = "Day1";                    // Tab name
-window.buildStoryCsvUrl = function() {
-  const id = window.STORY_SHEET_ID;
-  const tab = window.STORY_SHEET_TAB;
-  // GViz CSV is reliable when the sheet is Published to the web OR shared as "Anyone with link can view"
-  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
-};
-</script>
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 
@@ -1670,6 +1652,106 @@ html, body{ overflow-x: hidden !important; }
 
 /* Safety: don't let banner height explode */
 .tvbanner .banner-wrap{ padding-bottom: 8px !important; }
+</style>
+
+
+<style>
+/* === Banner layout fixes (v7) === */
+
+/* Ensure the 3-column banner row behaves */
+.banner-bottom{
+  display: grid !important;
+  grid-template-columns: auto 1fr auto !important;
+  align-items: center !important;
+}
+
+/* Left: keep Open Lesson up in the top-left of the bottom row */
+.bb-left{
+  justify-self: start !important;
+  align-self: start !important;
+  margin-top: 0 !important;
+}
+
+/* Center: center RADAR + TIME as a group */
+.bb-center{
+  justify-self: center !important;
+  align-self: center !important;
+  transform: none !important;           /* undo earlier translate */
+}
+
+/* Make the product row centered */
+.product-row{
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 18px !important;
+}
+
+/* Center the legend under the bubbles above */
+.banner-legend-mini{
+  margin: 8px auto 0 auto !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* Right: keep terms button under logo without colliding */
+.bb-right{
+  position: relative !important;
+  justify-self: end !important;
+  align-self: start !important;
+}
+
+/* place the button below the logo */
+#stormScienceGuideBtn{
+  position: absolute !important;
+  right: 0 !important;
+  top: 94px !important; /* slightly below logo */
+}
+
+/* keep logo top-right */
+#brandLogo{
+  position: absolute !important;
+  right: 10px !important;
+  top: 8px !important;
+}
+</style>
+
+
+<style>
+/* === Banner tweaks (v8) === */
+
+/* Open Lesson: push tighter to upper-left corner */
+.bb-left{ position: relative !important; }
+#openLessonBtn{
+  position: absolute !important;
+  left: 18px !important;
+  top: 52px !important;     /* tighter to upper-left */
+  margin: 0 !important;
+}
+
+/* Center RADAR + TIME + legend as a vertical stack */
+.bb-center{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Keep RADAR + TIME row centered */
+.product-row{
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+/* Legend: true centered under the row above */
+.banner-legend-mini{
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin: 8px auto 0 auto !important;
+  width: 100% !important;
+  max-width: 520px !important;
+}
 </style>
 
 </head>
